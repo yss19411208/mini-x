@@ -2,7 +2,8 @@
 
 /* 色とアイコンに名前を付けた CSS 変数。ミッション 5 では、ここの --accent などの色を変える */
 :root {
-  --accent: #1d9bf0;
+  /* A3: アクセント色を「夜空の紫」にした（もとは青 #1d9bf0）。ボタン・名前の入力欄などがこの色になる */
+  --accent: #7856ff;
   --like: #f91880;
   --bg: #ffffff;
   --bg-sub: #f7f9f9;
@@ -475,4 +476,37 @@ main {
 
 .like-btn:hover::after {
   background: color-mix(in srgb, var(--like) 10%, transparent);
+}
+
+/* ===== 応用ミッション A4・A6（後に書いたものが優先されるので、いちばん下に足す） ===== */
+
+/* A4: 投稿カードを、角の丸い・影の付いた「浮いたカード」にする */
+#timeline {
+  padding: 8px 0;
+  background: var(--bg-sub);
+}
+
+.post {
+  margin: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--bg);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+/* もとのマウスを乗せたときの色は透明なので、灰色の下地が透けないよう白に混ぜた色にする */
+.post:hover {
+  background: color-mix(in srgb, var(--accent) 4%, var(--bg));
+}
+
+/* A6: アイコンを円から「角丸の四角」にする（もとは border-radius: 50%） */
+.avatar {
+  border-radius: 12px;
+}
+
+/* A6: ボタンを丸い端（9999px）から、角丸 8px の四角にする */
+#post-btn,
+.nav-post-btn,
+#reload-btn {
+  border-radius: 8px;
 }
