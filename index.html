@@ -31,7 +31,11 @@
         <!-- ① ヘッダー（ミッション 0）。更新ボタンはミッション 2 で足した -->
         <header class="header">
           <h1>ホーム</h1>
-          <button id="reload-btn">更新</button>
+          <!-- B9: SSE でつながっているか（ライブ / つなぎ直し中）を出す。script.js が文字を入れる -->
+          <div class="header-tools">
+            <span id="live-status" class="live-status"></span>
+            <button id="reload-btn">更新</button>
+          </div>
         </header>
 
         <!-- ② 投稿欄（ミッション 0）。A2 で入力欄の薄い文字（placeholder）を変えた。script.js が id でこの入力欄とボタンを探す -->
@@ -54,7 +58,8 @@
         <!-- ③ 投稿カードの見本（ミッション 0）。画面には出ず、script.js がコピーして使う -->
         <template id="post-template">
           <li class="post">
-            <img class="avatar" src="icon.svg" alt="">
+            <!-- B7: 人ごとに違うアイコン。script.js が名前の 1 文字目と、名前で決まる背景の色を入れる -->
+            <div class="avatar initial" aria-hidden="true"></div>
             <div class="post-body">
               <span class="name"></span>
               <!-- B2: ポストした時刻。script.js が「3分前」などの文字を入れる -->

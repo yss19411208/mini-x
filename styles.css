@@ -552,3 +552,60 @@ main {
 .time::before {
   content: "・";
 }
+
+/* B7: 人ごとのアイコン。名前の 1 文字目を、白い太字で真ん中に出す（背景の色は script.js が入れる） */
+.avatar.initial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  user-select: none;
+}
+
+/* B8: 自分がいいねしたハートは、ハートと数をピンクにし、ハートを塗りつぶす
+   ハートは文字の色（currentColor）で描いているので、color を変えるとハートと数が両方ピンクになる
+   いいね済みは押しても何も起きないので、指の形のカーソルにしない */
+.like-btn.liked {
+  color: var(--like);
+  cursor: default;
+}
+
+.like-btn.liked::before {
+  mask-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 20.5S3 15.2 3 9a4.5 4.5 0 0 1 9-1 4.5 4.5 0 0 1 9 1c0 6.2-9 11.5-9 11.5z'/></svg>");
+}
+
+/* B9: ヘッダーの右に、つながっているか（ライブ）と更新ボタンを並べる */
+.header-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.live-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-sub);
+  font-size: 13px;
+}
+
+/* 左に丸い印。つながっていないあいだは灰色、ライブのときは緑 */
+.live-status::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-sub);
+}
+
+.live-status.live {
+  color: #00ba7c;
+  font-weight: 700;
+}
+
+.live-status.live::before {
+  background: #00ba7c;
+}
