@@ -9,6 +9,7 @@
 import type { BunFile, BunRequest, Server } from 'bun';
 import { clientIp, ipKey } from './client-ip.ts';
 import { createRateLimiter, type RateLimiter } from './rate-limit.ts';
+import { isEggDelay, isSealed, toPublicPost } from './egg.ts';
 import { checkShiritori, isShiritoriRoom } from './shiritori.ts';
 
 // ポスト 1 件の形。画面（script.ts）の Post と同じ形にする
@@ -18,10 +19,11 @@ type Post = {
   text: string;
   likes: number;
   createdAt: string; // ISO の形の時刻（例: 2026-11-19T07:00:00.000Z）
+  opensAt?: string; // 夢のたまご（オリジナル機能 2）がかえる時刻。ふつうのポストには無い
 };
 
-// 送られてきたポストの中身（checkPostBody で確かめたあとの形）
-type PostInput = { name: string; text: string };
+// 送られてきたポストの中身（checkPostBody で確かめたあとの形）。opensIn は夢のたまごの時間（分）
+type PostInput = { name: string; text: string; opensIn?: number };
 
 // SSE の接続 1 本分の記録
 type Connection = {
@@ -59,6 +61,9 @@ const LIMITS = {
   maxSseTotal: envNumber('MINIX_MAX_SSE_TOTAL', 500), // サーバー全体の SSE の接続数
   maxSsePerIp: envNumber('MINIX_MAX_SSE_PER_IP', 20), // 1 人の SSE の接続数
   sseMaxLifetimeMs: envNumber('MINIX_SSE_MAX_LIFETIME_MS', 10 * 60 * 1000), // 1 本の SSE をつないでおく最長の時間
+  eggsPerMinute: envNumber('MINIX_EGGS_PER_MINUTE', 3), // 1 人が 1 分に作れる夢のたまごの数
+  maxEggsPerRoom: envNumber('MINIX_MAX_EGGS_PER_ROOM', 20), // 1 部屋の、まだかえっていないたまごの数
+  eggMinuteMs: envNumber('MINIX_EGG_MINUTE_MS', 60 * 1000), // たまごの「1 分」の長さ（テストで短くして、かえるところを試すため）
   maxRequestBodyBytes: 64 * 1024, // Bun が受け取る本文の大きさ（どの URL でも）。超えると Bun が読む前に断る
 };
 
@@ -151,6 +156,7 @@ const limiters = {
   read: createRateLimiter({ limit: LIMITS.readsPerMinute, windowMs: MINUTE }),
   newRoom: createRateLimiter({ limit: LIMITS.newRoomsPerMinute, windowMs: MINUTE }),
   sseConnect: createRateLimiter({ limit: LIMITS.sseConnectsPerMinute, windowMs: MINUTE }),
+  egg: createRateLimiter({ limit: LIMITS.eggsPerMinute, windowMs: MINUTE }),
 };
 
 // ポスト 1 件分のオブジェクトを作る。id には、ほかと重ならない文字を自動で付ける
@@ -367,12 +373,16 @@ function readRoom(req: Request): string | Response {
 // 送られてきたポストの名前と本文を確かめる。だめなら理由の文を、よければ null を返す
 // body は JSON.parse の結果なので、どんな形か分からない（unknown）。ここで 1 つずつ確かめる
 function checkPostBody(body: unknown): string | null {
-  // 配列や null ではない、ふつうのオブジェクトで、キーは name と text のちょうど 2 つだけ
+  // 配列や null ではない、ふつうのオブジェクトで、キーは name と text（夢のたまごなら opensIn も）だけ
   const isPlainObject = typeof body === 'object' && body !== null && !Array.isArray(body);
   const record = (isPlainObject ? body : {}) as Record<string, unknown>;
   const keys = Object.keys(record).sort().join(',');
-  if (keys !== 'name,text' || typeof record.name !== 'string' || typeof record.text !== 'string') {
-    return 'name と text だけを文字列で送ってください（例: {"name": "たろう", "text": "こんにちは"}）';
+  if ((keys !== 'name,text' && keys !== 'name,opensIn,text') || typeof record.name !== 'string' || typeof record.text !== 'string') {
+    return 'name と text（夢のたまごなら opensIn も）だけを送ってください（例: {"name": "たろう", "text": "こんにちは"}）';
+  }
+  // 夢のたまごの時間は、決まった 4 つ（1・10・60・1440 分）のどれか
+  if ('opensIn' in record && !isEggDelay(record.opensIn)) {
+    return '夢のたまごの時間は 1・10・60・1440（分）から選んでください';
   }
   const name = record.name.trim();
   const text = record.text.trim();
@@ -415,6 +425,46 @@ async function readJsonBody(req: Request): Promise<JsonBodyResult> {
   }
 }
 
+// ===== 夢のたまご（オリジナル機能 2）。決まりは egg.ts =====
+
+// 夢のたまごを作ってよいかを確かめる。だめなら断る返事を、よければ null を返す
+function checkEgg(room: string, posts: Post[], key: string): Response | null {
+  // しりとり部屋では使えない（かえったときに先頭に上がると、しりとりのつながりが分からなくなる）
+  if (isShiritoriRoom(room)) {
+    return errorResponse(400, 'しりとり部屋では、夢のたまごは使えません');
+  }
+  const limited = checkLimit(limiters.egg, key, '夢のたまごは 1 分に ' + LIMITS.eggsPerMinute + ' 個までです');
+  if (limited) {
+    return limited;
+  }
+  const now = Date.now();
+  if (posts.filter((post) => isSealed(post, now)).length >= LIMITS.maxEggsPerRoom) {
+    return tooManyRequests(60, 'この部屋は、まだかえっていないたまごでいっぱいです。かえるまで待ってください');
+  }
+  return null;
+}
+
+// ポストを夢のたまごにする。かえる時刻を入れ、その時刻になったら hatchEgg を呼ぶタイマーを作る
+function layEgg(room: string, post: Post, minutes: number): void {
+  const delayMs = minutes * LIMITS.eggMinuteMs;
+  post.opensAt = new Date(Date.now() + delayMs).toISOString();
+  setTimeout(() => hatchEgg(room, post.id), delayMs);
+}
+
+// 夢のたまごがかえる時刻に呼ばれる。そのポストをタイムラインの先頭に動かし、画面に SSE で知らせる
+// サーバーを止めると、ポストといっしょにタイマーも消える（メモリにしか無いため）
+function hatchEgg(room: string, id: string): void {
+  const posts = rooms.get(room);
+  const index = posts ? posts.findIndex((post) => post.id === id) : -1;
+  // 部屋が消えた・古いポストとして消えたときは、何もしない
+  if (!posts || index === -1) {
+    return;
+  }
+  const [egg] = posts.splice(index, 1);
+  posts.unshift(egg!);
+  notify(room);
+}
+
 // GET /posts?room=部屋の名前：その部屋のポストの一覧を、新しい順に返す
 function getPosts(req: Request, server: MinixServer): Response {
   const key = ipKey(clientIp(req, server, TRUST_LOCAL_PROXY));
@@ -430,7 +480,9 @@ function getPosts(req: Request, server: MinixServer): Response {
   if (!posts) {
     return tooManyRequests(60, '新しい部屋を作りすぎています。少し待ってください');
   }
-  return jsonResponse(200, posts);
+  // まだかえっていない夢のたまごは、本文を送らない（オリジナル機能 2）
+  const now = Date.now();
+  return jsonResponse(200, posts.map((post) => toPublicPost(post, now)));
 }
 
 // POST /posts?room=部屋の名前：送られてきたポストを保存して、保存したポストを返す
@@ -474,14 +526,24 @@ async function createPost(req: Request, server: MinixServer): Promise<Response> 
       return errorResponse(400, shiritoriError);
     }
   }
+  // 夢のたまごなら、作ってよいかを確かめる（オリジナル機能 2）
+  if (input.opensIn !== undefined) {
+    const eggError = checkEgg(room, posts, key);
+    if (eggError) {
+      return eggError;
+    }
+  }
   const post = newPost(input.name.trim(), text, new Date());
+  if (input.opensIn !== undefined) {
+    layEgg(room, post, input.opensIn);
+  }
   posts.unshift(post);
   if (posts.length > MAX_POSTS_PER_ROOM) {
     posts.pop();
   }
   // 6. 同じ部屋の画面に SSE で知らせ、作ったポストを 201（作った）で返す
   notify(room);
-  return jsonResponse(201, post);
+  return jsonResponse(201, toPublicPost(post, Date.now()));
 }
 
 // POST /posts/:id/like?room=部屋の名前：その id のポストのいいねを 1 増やして返す
@@ -504,6 +566,10 @@ function likePost(req: BunRequest<'/posts/:id/like'>, server: MinixServer): Resp
   const post = touchRoom(room).find((p) => p.id === req.params.id);
   if (!post) {
     return errorResponse(404, 'その id の投稿は見つかりません');
+  }
+  // まだかえっていない夢のたまごには、いいねできない（中身が見えないので）
+  if (isSealed(post, Date.now())) {
+    return errorResponse(400, 'まだかえっていない夢のたまごには、いいねできません');
   }
   // 同じ人が同じポストを続けて押したら断る（連打でいいねを増やせないように）
   const sameLimited = checkLimit(limiters.sameLike, key + ' ' + room + ' ' + post.id, '同じポストへのいいねは、少し待ってから押してください');

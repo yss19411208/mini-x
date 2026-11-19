@@ -30,6 +30,8 @@ type Post = {
   text: string;
   likes: number;
   createdAt: string; // ISO の形の時刻
+  opensAt?: string; // 夢のたまご（オリジナル機能 2）がかえる時刻。ふつうのポストには無い
+  sealed?: boolean; // まだかえっていないたまごなら true（そのとき text は空で届く）
 };
 
 // id で画面の部品を探す（B6）。T は「何の部品か」（入力欄なら HTMLInputElement など）
@@ -259,10 +261,37 @@ async function loadPosts(): Promise<void> {
     likeButton.addEventListener('click', function () {
       addLike(post.id, likeButton);
     });
+    showEgg(card, post, likeButton);
     timeline.appendChild(card);
   }
   forgetDeletedLikes(posts);
   showShiritoriHint(posts);
+}
+
+// 夢のたまご（オリジナル機能 2）の見た目にする。ふつうのポストなら何もしない
+// まだかえっていなければ 🥚 とかえる時刻を出し、いいねを押せなくする。かえったら 🐣 の印を付ける
+function showEgg(card: DocumentFragment, post: Post, likeButton: HTMLButtonElement): void {
+  if (!post.opensAt) {
+    return;
+  }
+  const badge = part<HTMLElement>(card, '.egg-badge');
+  badge.hidden = false;
+  if (post.sealed) {
+    part(card, '.post').classList.add('sealed');
+    badge.textContent = '🥚 夢のたまご';
+    part(card, '.text').textContent = formatOpensAt(post.opensAt) + ' にかえります';
+    likeButton.disabled = true;
+  } else {
+    badge.textContent = '🐣 かえった夢のたまご';
+  }
+}
+
+// たまごがかえる時刻を「17:32」、今日でなければ「11/20 17:32」の形にする
+function formatOpensAt(opensAt: string): string {
+  const date = new Date(opensAt);
+  const hhmm = String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0');
+  const isToday = date.toDateString() === new Date().toDateString();
+  return isToday ? hhmm : (date.getMonth() + 1) + '/' + date.getDate() + ' ' + hhmm;
 }
 
 // しりとり部屋なら、次は何の字から始めればよいかを投稿欄に出す（オリジナル機能 1）
@@ -291,6 +320,8 @@ function showRoom(): void {
   byId('room-title').textContent = 'しりとり部屋';
   byId<HTMLTextAreaElement>('text-input').placeholder = 'しりとりのことば（ひらがな・カタカナ）';
   byId('room-hint').hidden = false;
+  // しりとり部屋では夢のたまごは使えない（サーバーも断る）ので、時間を選ぶ欄を隠す
+  byId('egg-select').hidden = true;
   // 左のメニューで、今いる部屋を太字にする（aria-current は「今のページ」と読み上げソフトに伝える印）
   byId('nav-home').removeAttribute('aria-current');
   byId('nav-shiritori').setAttribute('aria-current', 'page');
@@ -322,6 +353,12 @@ function updateCharCount(): void {
 let isPosting = false;
 
 // 投稿欄の名前と本文を、サーバーに「このポストを保存して」と送る（ミッション 3）
+// サーバーに送る中身。夢のたまごの時間（分）が選ばれていれば opensIn も入れる（オリジナル機能 2）
+function postBody(name: string, text: string): { name: string; text: string; opensIn?: number } {
+  const opensIn = Number(byId<HTMLSelectElement>('egg-select').value);
+  return opensIn > 0 ? { name: name, text: text, opensIn: opensIn } : { name: name, text: text };
+}
+
 async function addPost(): Promise<void> {
   const name = byId<HTMLInputElement>('name-input').value;
   const text = byId<HTMLTextAreaElement>('text-input').value;
@@ -339,7 +376,7 @@ async function addPost(): Promise<void> {
     const res = await fetch(API + '/posts?room=' + ROOM, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, text: text }),
+      body: JSON.stringify(postBody(name, text)),
     });
     // サーバーに断られたら（名前が空など）理由を出し、本文は消さずに残す
     if (!res.ok) {
@@ -350,6 +387,7 @@ async function addPost(): Promise<void> {
 
     // 送り終わったら本文の欄を空にして、残りの文字数を戻し、タイムラインを取り直す
     byId<HTMLTextAreaElement>('text-input').value = '';
+    byId<HTMLSelectElement>('egg-select').value = '0';
     updateCharCount();
     showPosts();
   } finally {
