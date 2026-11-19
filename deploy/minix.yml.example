@@ -1,0 +1,9 @@
+# ミニX のトンネルの設定の見本。置き場所: /etc/cloudflared/minix.yml
+# <TUNNEL-ID> は `cloudflared tunnel create minix` で出た ID に置きかえる（公開リポジトリには書かない）
+tunnel: <TUNNEL-ID>
+credentials-file: /etc/cloudflared/minix-credentials.json
+ingress:
+  - hostname: minix.dreamyard.cc
+    service: http://127.0.0.1:8100
+  # それ以外の名前で来たものは 404
+  - service: http_status:404

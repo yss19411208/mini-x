@@ -1,0 +1,51 @@
+# ミニX のサーバー（Bun）を動かす systemd の設定。置き場所: /etc/systemd/system/minix.service
+# - 専用のユーザー minix で動かす（コードは root の持ち物なので、アプリは自分のコードを書きかえられない）
+# - サーバーの中（127.0.0.1:8100）だけで待つ。外からは Cloudflare Tunnel（cloudflared-minix）経由でしか届かない
+# - 落ちたら 3 秒後に自動で起動し直す。メモリと CPU に上限をつけ、ほかのサービスを巻きこまない
+[Unit]
+Description=minix (mini-x on Bun)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=minix
+Group=minix
+WorkingDirectory=/opt/minix/app
+ExecStart=/opt/minix/bun/bun server.js
+
+# 待ち受けはサーバーの中だけ。8000 番はほかのサービスが使っているので 8100 番
+Environment=HOST=127.0.0.1
+Environment=PORT=8100
+# cloudflared（同じサーバー）から届く CF-Connecting-IP を信じて、相手ごとの回数制限を効かせる
+Environment=MINIX_TRUST_LOCAL_PROXY=1
+Environment=CORS_ORIGIN=https://minix.dreamyard.cc
+Environment=CSP_CONNECT_SRC=https://minix.dreamyard.cc
+Environment=BUN_RUNTIME_TRANSPILER_CACHE_PATH=0
+
+# 落ちたら自動で起動し直す
+Restart=always
+RestartSec=3
+
+# 使ってよい量の上限（Raspberry Pi 1 台をほかのサービスと分けあうため）
+MemoryHigh=384M
+MemoryMax=512M
+CPUQuota=100%
+TasksMax=64
+
+# できることを最小にする（ファイルは読むだけ・特別な権限なし）
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

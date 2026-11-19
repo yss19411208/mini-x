@@ -1,0 +1,22 @@
+# ミニX 専用の Cloudflare Tunnel。置き場所: /etc/systemd/system/cloudflared-minix.service
+# サーバーの中から Cloudflare へつなぎに行くので、外から入る口（ポート）を開けなくてよい
+# ほかのトンネル（draftrix など）とは別のトンネル・別のサービスなので、止めても互いに影響しない
+[Unit]
+Description=Cloudflare Tunnel (minix)
+After=network-online.target minix.service
+Wants=network-online.target
+
+[Service]
+User=minix-tunnel
+Group=minix-tunnel
+ExecStart=/usr/bin/cloudflared --no-autoupdate --config /etc/cloudflared/minix.yml tunnel run
+Restart=on-failure
+RestartSec=5
+MemoryMax=256M
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
