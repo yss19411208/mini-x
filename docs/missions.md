@@ -3,8 +3,8 @@
 出典: 手元資料 DOCS.md（応用ミッション）。済んだら `[x]` にし、PR 番号を書く。
 
 ## 土台
-- [ ] ミッション 0〜4 が済んだ状態のコード（completed/ 相当）を用意
-- [ ] **B5. 自分の PC でサーバーを動かす**（`server.js`、`script.js` の `API` を `http://localhost:8000`、`bun --hot server.js`）
+- [x] ミッション 0〜4 が済んだ状態のコード（completed/ 相当）を用意（公式 `2026/mini-x/completed/` をコピー）
+- [x] **B5. 自分の PC でサーバーを動かす**（`server.js`、`script.js` の `API` を `http://localhost:8000`、`bun --hot server.js`）
 
 ## A 組：HTML と CSS だけで見た目を変える
 - [ ] A1. アプリの名前を自分で決める

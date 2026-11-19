@@ -65,7 +65,7 @@
 
 ```
 index.html   画面（HTML）
-style.css    見た目
+styles.css   見た目
 script.js    画面の動き（fetch でサーバーとやりとり。先頭の API と ROOM）
 server.js    サーバー（Bun。部屋ごとのポスト・いいね・SSE）。B6 で TS 化する
 react/       B10・B11 の React 版（本体とは別に作る）
