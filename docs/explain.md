@@ -171,3 +171,28 @@
 - **API の場所**: 前は「https なら画面と同じ場所、http なら localhost:8000」だった。今は「ふだんは画面と同じ場所、`bun run index.html`（3000 番）のときだけ localhost:8000」。`bun server.ts` が画面も API も配るので、同じ場所にするほうが単純で、8000 番以外で動かしても動く（確かめるときに 8000 番が別のサーバーに使われていて困ったのがきっかけ）。
 - **`server.js` を 1 行だけ残した**: 本番の systemd は `bun server.js` で起動している。設定を変えずに更新できるよう、`server.js` は `import './server.ts'` だけにした。
 - 足した道具（`package.json` の `devDependencies`）: `typescript`（型の検査）と `@types/bun`（Bun の型）。どちらも検査のためだけで、サーバーを動かすときには要らない（本番では `bun install` しなくてよい）。
+
+## 応用ミッション B10・B11：React 版（`react/`。本体とは別。サーバーと API は本体と共通）
+
+参考にしたのは DOCS.md の B10・B11 のヒント（`App`・`Compose`・`PostCard` に分ける、`className`・`onClick`、`useState`・`useEffect`、`useState<Post[]>`、`bun-env.d.ts`）。答えは写していない（答えは B1〜B9 の無い短い版で、こちらは本体と同じ全機能）。
+
+- **B10 で JSX、B11 で TSX にした**。JSX 版はコミット `e5ccf0c` に残っている（今のフォルダは TSX だけ）。同じ画面のコードを 2 つ並べると、直すときに片方を忘れやすいので、TSX だけを残した。
+- **ファイル**:
+  | ファイル | 役目 |
+  | --- | --- |
+  | `main.tsx` | 入り口。`<main id="root">` に `App` をつなぐ |
+  | `App.tsx` | 画面全体。`Header`（ライブの表示・更新ボタン）・`Compose`・`PostCard` の並び。いいねの処理 |
+  | `Compose.tsx` | 投稿欄。名前と本文を `useState` で持つ。残りの文字数（B1）・Ctrl+Enter（B3） |
+  | `PostCard.tsx` | 投稿カード 1 枚。アイコン（B7）・時刻（B2）・ハート（B8） |
+  | `hooks.ts` | `useTimeline`（一覧・SSE・10 秒ごとの予備の取り直し。B4・B9）と `useLikedIds`（いいねの記録。B8） |
+  | `api.ts` | サーバーとのやりとり（`fetchPosts`・`sendPost`・`sendLike`）と `type Post` |
+  | `format.ts` | 色・頭文字・文字数・時刻の文字（本体の `script.ts` と同じ中身） |
+- **本体との違い（考え方）**: 本体は「部品を探して `textContent` を書き換える」。React は「今の値（state）から画面の形を書く」と、値が変わったときに React が描き直す。たとえば残りの文字数は、`text` が変わるたびに描き直されるので、数え直す関数を自分で呼ばなくてよい。
+- **XSS**: `{post.text}` のように `{}` で入れた文字は、React が必ずただの文字として出す（本体の `textContent` と同じ）。`dangerouslySetInnerHTML` は使っていない。`<img src=x onerror=...>` をポストしても、文字のまま出ることを確かめた。
+- **`useEffect` の後片づけ**: SSE の接続とタイマーは `useEffect` の中で作り、`return` の関数で閉じる（画面が消えたときに接続が残らないように）。10 秒ごとの取り直しは「`isLive` が false のあいだだけ」の effect にしたので、つながると React がタイマーを止める（本体では `autoReload` の中で `isLive` を見ていた）。
+- **`useRef`**: 「取りに行っている途中か」は画面に出さない値なので、`useState`（変えると描き直す）ではなく `useRef`（変えても描き直さない）に置いた。
+- **いいねの記録**: `Set` は中身を変えても React が気づかないので、変えるときは毎回 `new Set(...)` で作り直す。localStorage の名前は本体と同じなので、本体でいいねしたハートは React 版でもピンク。
+- **型（B11）**: props の形を `type PostCardProps = { ... }` で書いた。`.svg` を import すると URL の文字が手に入ることは `bun-env.d.ts` で TypeScript に教える。`react` フォルダで `bunx tsc` を実行するとエラー 0。
+- **動かし方**: 開発は `cd react && bun install && bun run dev`（3000 番。API は `localhost:8000` の本体のサーバー）。`bun run build` で `react/dist` に 1 つにまとめたファイルを作り、本体の `server.ts` が **`/react/`** で配る（本番でも https://minix.dreamyard.cc/react/ で見られる。本番のサーバーには react の部品〔node_modules〕を入れなくてよい）。
+  - `server.ts` の `serveReact` は、ファイルの名前を英数字・ハイフン・拡張子だけに限っている。`/react/../server.ts` のような URL で、ほかのファイルを読まれないようにするため（`bun test` で確かめている）。
+  - `react/dist` はビルドしてできたファイルなので、`.gitattributes` で GitHub の差分では折りたたむ。
