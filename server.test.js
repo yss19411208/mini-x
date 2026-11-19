@@ -35,7 +35,14 @@ function sendPost(name, text, room = ROOM) {
 beforeAll(async () => {
   serverProcess = Bun.spawn(['bun', 'server.js'], {
     cwd: import.meta.dir,
-    env: { ...process.env, PORT: String(PORT) },
+    // このテストは同じ PC から何十回も送るので、回数の制限は大きくしておく（制限は hardening.test.js で確かめる）
+    env: {
+      ...process.env,
+      PORT: String(PORT),
+      MINIX_POSTS_PER_MINUTE: '1000',
+      MINIX_LIKES_PER_MINUTE: '1000',
+      MINIX_READS_PER_MINUTE: '1000',
+    },
     stdout: 'ignore',
     stderr: 'inherit',
   });
@@ -111,5 +118,48 @@ describe('ポストした時刻（B2 で使う createdAt）', () => {
     for (let i = 1; i < posts.length; i++) {
       expect(posts[i - 1].createdAt >= posts[i].createdAt).toBe(true);
     }
+  });
+});
+
+// SSE の接続から、ある文字が届くまで読み進める。届かなければ 3 秒であきらめて失敗にする
+async function readUntil(reader, expected) {
+  const decoder = new TextDecoder();
+  let received = '';
+  const deadline = Date.now() + 3000;
+  while (!received.includes(expected)) {
+    if (Date.now() > deadline) {
+      throw new Error(expected + ' が届きませんでした。届いたのは: ' + received);
+    }
+    const { value, done } = await reader.read();
+    if (done) {
+      throw new Error('接続が切れました。届いたのは: ' + received);
+    }
+    received += decoder.decode(value);
+  }
+  return received;
+}
+
+describe('SSE の知らせ（B9）', () => {
+  test('つなぐと retry の指定が届き、ポストといいねのたびに changed が届く', async () => {
+    const room = ROOM + '-sse';
+    const res = await fetch(BASE + '/posts/events?room=' + room);
+    expect(res.headers.get('Content-Type')).toContain('text/event-stream');
+    const reader = res.body.getReader();
+    try {
+      expect(await readUntil(reader, ': connected')).toContain('retry: 3000');
+
+      const post = await (await sendPost('じろう', 'SSE のテスト', room)).json();
+      await readUntil(reader, 'data: changed');
+
+      await fetch(BASE + '/posts/' + post.id + '/like?room=' + room, { method: 'POST' });
+      await readUntil(reader, 'data: changed');
+    } finally {
+      await reader.cancel();
+    }
+  });
+
+  test('使えない部屋名ではつなげない', async () => {
+    const res = await fetch(BASE + '/posts/events?room=' + encodeURIComponent('へや'));
+    expect(res.status).toBe(400);
   });
 });
