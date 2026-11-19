@@ -4,6 +4,8 @@ const API = 'http://localhost:8000';
 const ROOM = 'sample';
 // 本文の長さの上限。server.js の MAX_TEXT_LENGTH と同じ数にする（B1）
 const MAX_TEXT_LENGTH = 140;
+// タイムラインを自動で取り直す間隔（ミリ秒）。10 秒（B4）
+const AUTO_RELOAD_MS = 10 * 1000;
 
 // ポストした時刻を「たった今」「3分前」「2時間前」、1 日より前なら「11/19 16:02」の形の文字にする（B2）
 function formatTime(createdAt) {
@@ -23,10 +25,51 @@ function formatTime(createdAt) {
   return (date.getMonth() + 1) + '/' + date.getDate() + ' ' + hh + ':' + mm;
 }
 
-// サーバーにポストの一覧を「ください」と頼み、投稿カードにしてタイムラインに並べる（ミッション 1・2・4）
+// 一覧を取りに行っている途中かどうか。自動更新と更新ボタンなどで、同じ通信を重ねないための印（B4）
+let isLoading = false;
+// 取りに行っている途中に、もう一度頼まれたかどうか。ポストした直後などに頼まれた分を、終わってから取り直す（B4）
+let reloadAgain = false;
+
+// タイムラインを取り直す。更新ボタン・ポストやいいねのあと・10 秒ごとの自動更新から呼ばれる（B4）
+// 書き換えるのはタイムラインだけなので、入力中の名前や本文は消えない
 async function showPosts() {
+  // 前の通信が終わっていなければ、重ねて送らずに「あとでもう 1 回」と覚えておく
+  if (isLoading) {
+    reloadAgain = true;
+    return;
+  }
+
+  isLoading = true;
+  try {
+    await loadPosts();
+  } catch (error) {
+    // サーバーが止まっているときなど。画面はそのままにして、次の自動更新でまた試す
+    console.error('タイムラインを取れませんでした', error);
+  } finally {
+    isLoading = false;
+  }
+
+  if (reloadAgain) {
+    reloadAgain = false;
+    showPosts();
+  }
+}
+
+// 10 秒ごとに呼ばれる。別のタブを見ているあいだは画面が見えないので、取りに行かない（B4）
+function autoReload() {
+  if (document.hidden) {
+    return;
+  }
+  showPosts();
+}
+
+// サーバーにポストの一覧を「ください」と頼み、投稿カードにしてタイムラインに並べる（ミッション 1・2・4）
+async function loadPosts() {
   // サーバーからポストの一覧を取ってくる（ミッション 2）
   const res = await fetch(API + '/posts?room=' + ROOM);
+  if (!res.ok) {
+    throw new Error('サーバーの返事が ' + res.status + ' でした');
+  }
   const posts = await res.json();
 
   // 並べる前にタイムラインを空にする（ミッション 1）
@@ -139,3 +182,5 @@ document.getElementById('text-input').addEventListener('keydown', postByShortcut
 // ページを開いたときに 1 回、残りの文字数とタイムラインを表示する
 updateCharCount();
 showPosts();
+// そのあとは 10 秒ごとに、タイムラインを自動で取り直す（B4）
+setInterval(autoReload, AUTO_RELOAD_MS);
