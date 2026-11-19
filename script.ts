@@ -1,5 +1,6 @@
 // ミニX の動きを書くファイル。サーバーとポストをやりとりして、タイムラインに並べる
 // B6 で TypeScript にした。ブラウザは .ts を読めないので、server.ts が配る前に型を取り除いて JavaScript にする
+import { avatarColor, countChars, formatOpensAt, formatTime, initialOf, MAX_TEXT_LENGTH } from './format.ts';
 import { isShiritoriRoom, MAX_WORD_LENGTH, nextKana } from './shiritori.ts';
 
 // API はサーバーの場所（URL）、ROOM は部屋の名前。同じ部屋の人どうしで、ポストが見える
@@ -11,12 +12,8 @@ const API = location.port === '3000' ? 'http://localhost:8000' : location.origin
 const ROOM = roomFromUrl();
 // しりとり部屋かどうか（オリジナル機能 1）
 const IS_SHIRITORI = isShiritoriRoom(ROOM);
-// 本文の長さの上限。server.js の MAX_TEXT_LENGTH と同じ数にする（B1）
-const MAX_TEXT_LENGTH = 140;
 // タイムラインを自動で取り直す間隔（ミリ秒）。10 秒（B4）
 const AUTO_RELOAD_MS = 10 * 1000;
-// アイコンの背景の色（B7）。白い太字が読めるよう、濃いめの色を 8 つ並べる
-const AVATAR_COLORS = ['#7856ff', '#d6336c', '#1971c2', '#2f9e44', '#e8590c', '#ae3ec9', '#0c8599', '#495057'];
 // 自分がいいねしたポストの id を、ブラウザ（localStorage）に保存するときの名前。部屋ごとに分ける（B8）
 const LIKED_KEY = 'minix-liked-' + ROOM;
 // SSE が切れて、ブラウザがつなぎ直すのを諦めたときに、自分でつなぎ直すまでの待ち時間。1 秒から倍々で、最大 30 秒（B9）
@@ -59,24 +56,6 @@ function roomFromUrl(): string {
   return room && /^[A-Za-z0-9-]{1,32}$/.test(room) ? room : 'sample';
 }
 
-// 名前から、アイコンの背景の色を 1 つ選ぶ（B7）
-// 名前の全部の文字の番号（コードポイント）を混ぜた数を、色の数で割った余りで選ぶ。同じ名前なら、いつも同じ色になる
-// 1 文字目だけだと「たろう」と「たけし」が同じ色になるので、全部の文字を使う
-// 混ぜ方は djb2 という有名な作り方（5381 から始め、33 を掛けて文字の番号を足す）。33 を掛けるので、文字の並び順でも数が変わる
-// 数が大きくなりすぎないよう、毎回 1000003（素数）で割った余りにする
-function avatarColor(name: string): string {
-  let hash = 5381;
-  for (const char of name) {
-    hash = (hash * 33 + char.codePointAt(0)!) % 1000003;
-  }
-  return AVATAR_COLORS[hash % AVATAR_COLORS.length]!;
-}
-
-// 名前の 1 文字目を返す（B7）。name[0] だと絵文字（😀）が半分に切れて文字化けするので、Array.from で 1 字ずつに分ける
-function initialOf(name: string): string {
-  return Array.from(name)[0] ?? '';
-}
-
 // ブラウザに保存してある「自分がいいねしたポストの id」を読み出す（B8）
 // 保存がない・壊れている・ブラウザが保存を許していない（シークレットモードなど）ときは、空から始める
 function loadLikedIds(): Set<string> {
@@ -117,24 +96,6 @@ function forgetDeletedLikes(posts: Post[]): void {
   if (changed) {
     saveLikedIds();
   }
-}
-
-// ポストした時刻を「たった今」「3分前」「2時間前」、1 日より前なら「11/19 16:02」の形の文字にする（B2）
-function formatTime(createdAt: string): string {
-  const date = new Date(createdAt);
-  const minutes = Math.floor((Date.now() - date.getTime()) / (60 * 1000));
-  if (minutes < 1) {
-    return 'たった今';
-  }
-  if (minutes < 60) {
-    return minutes + '分前';
-  }
-  if (minutes < 24 * 60) {
-    return Math.floor(minutes / 60) + '時間前';
-  }
-  const hh = String(date.getHours()).padStart(2, '0');
-  const mm = String(date.getMinutes()).padStart(2, '0');
-  return (date.getMonth() + 1) + '/' + date.getDate() + ' ' + hh + ':' + mm;
 }
 
 // 一覧を取りに行っている途中かどうか。自動更新と更新ボタンなどで、同じ通信を重ねないための印（B4）
@@ -240,32 +201,37 @@ async function loadPosts(): Promise<void> {
 
   // 1 件ずつ、見本の投稿カードをコピーして中身を入れ、タイムラインに入れる（ミッション 1）
   for (const post of posts) {
-    const card = template.content.cloneNode(true) as DocumentFragment;
-    // アイコンに名前の 1 文字目を入れ、名前で決まる色を背景にする（B7）
-    const avatar = part<HTMLDivElement>(card, '.avatar');
-    avatar.textContent = initialOf(post.name);
-    avatar.style.backgroundColor = avatarColor(post.name);
-    part(card, '.name').textContent = post.name;
-    part(card, '.text').textContent = post.text;
-    // ポストした時刻を出す。マウスを乗せると、日付と秒までの時刻が見える（B2）
-    const time = part<HTMLTimeElement>(card, '.time');
-    time.textContent = formatTime(post.createdAt);
-    time.dateTime = post.createdAt;
-    time.title = new Date(post.createdAt).toLocaleString('ja-JP');
-    // いいねの数を出し、ハートが押されたらこのポストの id で addLike を呼ぶ（ミッション 4）
-    // textContent に入れられるのは文字だけなので、数を String で文字にする（B6）
-    part(card, '.like-count').textContent = String(post.likes);
-    const likeButton = part<HTMLButtonElement>(card, '.like-btn');
-    // 自分がいいねしたポストなら、ハートと数をピンクにする（B8）
-    showLiked(likeButton, likedIds.has(post.id));
-    likeButton.addEventListener('click', function () {
-      addLike(post.id, likeButton);
-    });
-    showEgg(card, post, likeButton);
-    timeline.appendChild(card);
+    timeline.appendChild(createPostCard(template, post));
   }
   forgetDeletedLikes(posts);
   showShiritoriHint(posts);
+}
+
+// 見本（<template>）をコピーして、ポスト 1 件分の投稿カードを作る（ミッション 1）
+function createPostCard(template: HTMLTemplateElement, post: Post): DocumentFragment {
+  const card = template.content.cloneNode(true) as DocumentFragment;
+  // アイコンに名前の 1 文字目を入れ、名前で決まる色を背景にする（B7）
+  const avatar = part<HTMLDivElement>(card, '.avatar');
+  avatar.textContent = initialOf(post.name);
+  avatar.style.backgroundColor = avatarColor(post.name);
+  part(card, '.name').textContent = post.name;
+  part(card, '.text').textContent = post.text;
+  // ポストした時刻を出す。マウスを乗せると、日付と秒までの時刻が見える（B2）
+  const time = part<HTMLTimeElement>(card, '.time');
+  time.textContent = formatTime(post.createdAt);
+  time.dateTime = post.createdAt;
+  time.title = new Date(post.createdAt).toLocaleString('ja-JP');
+  // いいねの数を出し、ハートが押されたらこのポストの id で addLike を呼ぶ（ミッション 4）
+  // textContent に入れられるのは文字だけなので、数を String で文字にする（B6）
+  part(card, '.like-count').textContent = String(post.likes);
+  const likeButton = part<HTMLButtonElement>(card, '.like-btn');
+  // 自分がいいねしたポストなら、ハートと数をピンクにする（B8）
+  showLiked(likeButton, likedIds.has(post.id));
+  likeButton.addEventListener('click', function () {
+    addLike(post.id, likeButton);
+  });
+  showEgg(card, post, likeButton);
+  return card;
 }
 
 // 夢のたまご（オリジナル機能 2）の見た目にする。ふつうのポストなら何もしない
@@ -284,14 +250,6 @@ function showEgg(card: DocumentFragment, post: Post, likeButton: HTMLButtonEleme
   } else {
     badge.textContent = '🐣 かえった夢のたまご';
   }
-}
-
-// たまごがかえる時刻を「17:32」、今日でなければ「11/20 17:32」の形にする
-function formatOpensAt(opensAt: string): string {
-  const date = new Date(opensAt);
-  const hhmm = String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0');
-  const isToday = date.toDateString() === new Date().toDateString();
-  return isToday ? hhmm : (date.getMonth() + 1) + '/' + date.getDate() + ' ' + hhmm;
 }
 
 // しりとり部屋なら、次は何の字から始めればよいかを投稿欄に出す（オリジナル機能 1）
@@ -332,11 +290,6 @@ function showRoom(): void {
 function showLiked(button: HTMLButtonElement, liked: boolean): void {
   button.classList.toggle('liked', liked);
   button.setAttribute('aria-pressed', String(liked));
-}
-
-// 文字数を数える。絵文字を 1 字と数えるため、server.js と同じく Array.from で 1 字ずつに分けて数える（B1）
-function countChars(text: string): number {
-  return Array.from(text).length;
 }
 
 // 本文の残りの文字数を表示する。140 字を超えたら赤くして、ポストするボタンを押せなくする（B1）

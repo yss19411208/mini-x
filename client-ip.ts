@@ -35,7 +35,7 @@ function unwrapMappedIPv4(ip: string): string {
 }
 
 // その IP が Cloudflare の範囲に入っているか
-export function isCloudflare(ip: string): boolean {
+function isCloudflare(ip: string): boolean {
   const address = unwrapMappedIPv4(ip);
   if (isIPv4(address)) {
     return cloudflare.check(address, 'ipv4');

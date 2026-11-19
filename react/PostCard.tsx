@@ -1,7 +1,7 @@
 // 投稿カード 1 枚分の部品。本体の index.html の <template id="post-template"> と同じ形
 // {post.name} のように {} で入れた文字は、React が必ず「ただの文字」として出す（本体の textContent と同じ。XSS を防ぐ）
 import type { Post } from './api.ts';
-import { avatarColor, formatOpensAt, formatTime, initialOf } from './format.ts';
+import { avatarColor, formatOpensAt, formatTime, initialOf } from '../format.ts';
 
 // この部品が受け取る値（props）の形（B11）
 type PostCardProps = {

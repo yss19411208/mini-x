@@ -17,7 +17,7 @@
 
 ## 1. 優先順位
 
-1. **動くこと**（`bun --hot server.js` で起動し、http://localhost:8000/ でポスト・いいねができる）
+1. **動くこと**（`bun --hot server.ts` で起動し、http://localhost:8000/ でポスト・いいねができる）
 2. **レビューで読みやすいこと**（エンジニアが読む。短い関数・分かる名前・日本語のコメント）
 3. 機能が多いこと
 
@@ -41,9 +41,9 @@
 ## 2. 絶対に守ること
 
 - 秘密情報（トークン・パスワード・`.env`）をコミットしない。**リポジトリは公開して提出する前提**で書く。
-- 実行環境は **Bun**（`bun run index.html` / `bun --hot server.js`）。新しいライブラリやフレームワークを足すときは、理由を書いて人間に確認する。
+- 実行環境は **Bun**（`bun --hot server.ts`）。新しいライブラリやフレームワークを足すときは、理由を書いて人間に確認する。
 - **ユーザーが入力した文字は `textContent` で表示する**（`innerHTML` に入れない。XSS を防ぐ）。
-- サーバーは入力を必ず確かめる（名前・本文の長さ、部屋の名前の形、id の存在）。今の `server.js` の決まり（名前20字・本文140字・1部屋200件・部屋名 `^[A-Za-z0-9-]{1,32}$`）を崩さない。
+- サーバーは入力を必ず確かめる（名前・本文の長さ、部屋の名前の形、id の存在）。今の `server.ts` の決まり（名前20字・本文140字・1部屋200件・部屋名 `^[A-Za-z0-9-]{1,32}$`）を崩さない。
 - 確かめていないことを「動いた」と書かない。
 
 ## 2.5 本番サーバーの決まり
@@ -66,9 +66,15 @@
 ```
 index.html   画面（HTML）
 styles.css   見た目
-script.js    画面の動き（fetch でサーバーとやりとり。先頭の API と ROOM）
-server.js    サーバー（Bun。部屋ごとのポスト・いいね・SSE）。B6 で TS 化する
-react/       B10・B11 の React 版（本体とは別に作る）
+script.ts    画面の動き（fetch でサーバーとやりとり。先頭の API と ROOM）。server.ts が JavaScript に直して配る
+format.ts    画面に出す文字と色・本文の長さの上限（script.ts・react/・server.ts で共通）
+shiritori.ts オリジナル機能 1（しりとり部屋）の決まり（server.ts・script.ts で共通）
+egg.ts       オリジナル機能 2（夢のたまご）の決まり
+server.ts    サーバー（Bun。部屋ごとのポスト・いいね・SSE・/react/）。server.js は本番の起動用に server.ts を読むだけ
+client-ip.ts・rate-limit.ts  攻撃への備え（相手の IP・回数の制限）
+*.test.ts    bun test のテスト
+react/       B10・B11 の React 版（TSX。bun run build で react/dist を作り、server.ts が /react/ で配る）
+deploy/      本番（minix.dreamyard.cc）の設定の見本
 docs/
   odai.md      お題の要点と提出テンプレート
   missions.md  ミッションのチェックリスト
@@ -79,7 +85,7 @@ README.md    アプリの説明（機能一覧・起動方法・スクショ）�
 
 ## 4. 確かめ方
 
-- 1機能ごとに、`bun --hot server.js` で起動し、http://localhost:8000/ で手順どおり動くことを確かめる。手順と結果を journal に書く。
+- 1機能ごとに、`bun --hot server.ts` で起動し、http://localhost:8000/ で手順どおり動くことを確かめる。手順と結果を journal に書く。
 - サーバーの API は、Chrome で `http://localhost:8000/posts?room=sample` を開く、または `curl` で確かめる。
 - 可能なら、Bun のテスト（`bun test`）でサーバーの入力チェックを確かめる（例: 141字の本文を拒否する）。
 - 最後に人間が画面で確かめる（AI は確かめる手順を短く書いて渡す）。

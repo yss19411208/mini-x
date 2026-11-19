@@ -2,7 +2,7 @@
 import { type KeyboardEvent, useState } from 'react';
 import icon from '../icon.svg';
 import { sendPost } from './api.ts';
-import { countChars, MAX_TEXT_LENGTH } from './format.ts';
+import { countChars, MAX_TEXT_LENGTH } from '../format.ts';
 
 // onPosted は、ポストし終わったときに呼ぶ関数（タイムラインを取り直すため）
 type ComposeProps = { onPosted: () => void };

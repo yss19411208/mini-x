@@ -42,7 +42,7 @@ git push -u origin main
 1. Claude アプリ → **Code** → **Local** → **Open folder…** で `Documents\GitHub\mini-x` を開く
 2. `今何時？` と送り、日本時間が返ればフックが動いています
 3. **新しいチャット**で `PROMPTS.md` の「1. 土台づくり」を貼る
-4. 終わったら、Claude が書いた手順で画面を確かめる（`bun --hot server.js` → Chrome で http://localhost:8000/ ）
+4. 終わったら、Claude が書いた手順で画面を確かめる（`bun --hot server.ts` → Chrome で http://localhost:8000/ ）
 5. 以後、「2. A 組」→「3. B1〜B4」→「4. 案」→「5. 作る」→「6. 点検」→「7. README と提出文」の順に、それぞれ新しいチャットで
 
 PR が来たら、画面で動きを確かめてからマージします。

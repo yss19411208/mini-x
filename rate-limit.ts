@@ -10,7 +10,6 @@ export type HitResult = { ok: true } | { ok: false; retryAfter: number };
 export type RateLimiter = {
   hit: (key: string) => HitResult;
   sweep: (now: number) => void;
-  size: () => number;
 };
 
 type RateLimiterOptions = {
@@ -62,5 +61,5 @@ export function createRateLimiter({ limit, windowMs, maxKeys = 10000 }: RateLimi
     return { ok: true };
   }
 
-  return { hit, sweep, size: () => counters.size };
+  return { hit, sweep };
 }
