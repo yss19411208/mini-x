@@ -10,6 +10,7 @@ import type { BunFile, BunRequest, Server } from 'bun';
 import { clientIp, ipKey } from './client-ip.ts';
 import { createRateLimiter, type RateLimiter } from './rate-limit.ts';
 import { isEggDelay, isSealed, toPublicPost } from './egg.ts';
+import { MAX_TEXT_LENGTH } from './format.ts';
 import { checkShiritori, isShiritoriRoom } from './shiritori.ts';
 
 // ポスト 1 件の形。画面（script.ts）の Post と同じ形にする
@@ -36,9 +37,8 @@ type Connection = {
 // このサーバーの型。WebSocket は使わないので、WebSocket のデータの型は undefined
 type MinixServer = Server<undefined>;
 
-// 名前と本文の長さ、1 つの部屋に残すポストの数、部屋の名前に使える文字の決まり
+// 名前の長さ、1 つの部屋に残すポストの数、部屋の名前に使える文字の決まり（本文の長さ MAX_TEXT_LENGTH は format.ts）
 const MAX_NAME_LENGTH = 20;
-const MAX_TEXT_LENGTH = 140;
 const MAX_POSTS_PER_ROOM = 200;
 const ROOM_PATTERN = /^[A-Za-z0-9-]{1,32}$/;
 
@@ -126,6 +126,7 @@ const STATIC_FILES: Record<string, StaticFile> = {
   '/index.html': { file: 'index.html', type: 'text/html; charset=utf-8' },
   '/script.ts': { file: 'script.ts', type: 'text/javascript; charset=utf-8', transpile: true },
   '/shiritori.ts': { file: 'shiritori.ts', type: 'text/javascript; charset=utf-8', transpile: true },
+  '/format.ts': { file: 'format.ts', type: 'text/javascript; charset=utf-8', transpile: true },
   '/styles.css': { file: 'styles.css', type: 'text/css; charset=utf-8' },
   '/icon.svg': { file: 'icon.svg', type: 'image/svg+xml' },
 };
@@ -485,6 +486,22 @@ function getPosts(req: Request, server: MinixServer): Response {
   return jsonResponse(200, posts.map((post) => toPublicPost(post, now)));
 }
 
+// オリジナル機能の決まりを確かめる。だめなら断る返事を、よければ null を返す
+// しりとり部屋なら、いちばん新しいポストの最後の字から始まっているか（オリジナル機能 1）
+// 夢のたまご（opensIn がある）なら、作ってよいか（オリジナル機能 2）
+function checkOriginalRules(room: string, posts: Post[], key: string, text: string, opensIn: number | undefined): Response | null {
+  if (isShiritoriRoom(room)) {
+    const shiritoriError = checkShiritori(posts[0]?.text ?? null, text);
+    if (shiritoriError) {
+      return errorResponse(400, shiritoriError);
+    }
+  }
+  if (opensIn !== undefined) {
+    return checkEgg(room, posts, key);
+  }
+  return null;
+}
+
 // POST /posts?room=部屋の名前：送られてきたポストを保存して、保存したポストを返す
 async function createPost(req: Request, server: MinixServer): Promise<Response> {
   // 1. 回数の制限。断られたポストも 1 回と数える（間違ったデータの連打も防ぐため）
@@ -517,21 +534,12 @@ async function createPost(req: Request, server: MinixServer): Promise<Response> 
   if (!posts) {
     return tooManyRequests(60, '新しい部屋を作りすぎています。少し待ってください');
   }
+  // オリジナル機能（しりとり部屋・夢のたまご）の決まりを確かめる
+  // ここから unshift までは await を挟まないので、2 人が同時に送っても、2 人目は 1 人目のポストのあとで確かめられる
   const text = input.text.trim();
-  // しりとり部屋なら、いちばん新しいポストの最後の字から始まっているかを確かめる（オリジナル機能 1）
-  // ここから unshift までは await を挟まないので、2 人が同時に送っても、2 人目は 1 人目のことばにつながっているかで確かめられる
-  if (isShiritoriRoom(room)) {
-    const shiritoriError = checkShiritori(posts[0]?.text ?? null, text);
-    if (shiritoriError) {
-      return errorResponse(400, shiritoriError);
-    }
-  }
-  // 夢のたまごなら、作ってよいかを確かめる（オリジナル機能 2）
-  if (input.opensIn !== undefined) {
-    const eggError = checkEgg(room, posts, key);
-    if (eggError) {
-      return eggError;
-    }
+  const ruleError = checkOriginalRules(room, posts, key, text, input.opensIn);
+  if (ruleError) {
+    return ruleError;
   }
   const post = newPost(input.name.trim(), text, new Date());
   if (input.opensIn !== undefined) {
@@ -605,9 +613,18 @@ function getEvents(req: Request, server: MinixServer): Response {
   // 知らせのない間が idleTimeout（10 秒）を超えると Bun.serve が接続を切るので、この接続だけ止める
   // 代わりに、sendHeartbeats が寿命（sseMaxLifetimeMs）を過ぎた接続を切る
   server.timeout(req, 0);
-  // つないでいるあいだは listeners に入れておき、画面が閉じられたら取り除く
+
+  // text/event-stream という種類の返事にすると、ブラウザは EventSource で受け取れる
+  const res = new Response(openEventStream(room, key));
+  res.headers.set('Content-Type', 'text/event-stream');
+  res.headers.set('Cache-Control', 'no-cache');
+  return withHeaders(res);
+}
+
+// SSE の流れ（ReadableStream）を作る。つないでいるあいだは listeners に入れておき、画面が閉じられたら取り除く
+function openEventStream(room: string, key: string): ReadableStream<string> {
   const connection: Connection = { room: room, key: key, openedAt: Date.now(), controller: null };
-  const stream = new ReadableStream<string>({
+  return new ReadableStream<string>({
     start(controller) {
       connection.controller = controller;
       let connections = listeners.get(room);
@@ -624,12 +641,6 @@ function getEvents(req: Request, server: MinixServer): Response {
       removeListener(connection);
     },
   });
-
-  // text/event-stream という種類の返事にすると、ブラウザは EventSource で受け取れる
-  const res = new Response(stream);
-  res.headers.set('Content-Type', 'text/event-stream');
-  res.headers.set('Cache-Control', 'no-cache');
-  return withHeaders(res);
 }
 
 // script.ts から型を取り除いて JavaScript にする道具（B6）。ファイルを 1 つにまとめる（バンドル）ことはしない

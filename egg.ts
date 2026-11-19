@@ -2,7 +2,7 @@
 // サーバー（server.ts）が使う。かえる（開く）時刻は、ポストの opensAt に入れておく
 
 // 選べる時間（分）。1 分後・10 分後・1 時間後・明日（24 時間後）。これ以外は断る
-export const EGG_DELAYS_MINUTES = [1, 10, 60, 24 * 60];
+const EGG_DELAYS_MINUTES = [1, 10, 60, 24 * 60];
 
 // たまごにできるポストの形（server.ts の Post）。opensAt はかえる時刻。ふつうのポストには無い
 type EggPost = { text: string; opensAt?: string };
