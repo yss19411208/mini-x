@@ -68,15 +68,51 @@ function postsOf(room) {
   return rooms.get(room);
 }
 
+// SSE の接続を listeners から取り除く。その部屋に誰もいなくなったら、部屋ごと消す
+function removeListener(room, controller) {
+  const controllers = listeners.get(room);
+  if (!controllers) {
+    return;
+  }
+  controllers.delete(controller);
+  if (controllers.size === 0) {
+    listeners.delete(room);
+  }
+}
+
+// 1 つの接続に文字を送る。もう切れている接続に送ると例外になるので、そのときは取り除く（B9）
+function sendEvent(room, controller, message) {
+  try {
+    controller.enqueue(message);
+  } catch {
+    removeListener(room, controller);
+  }
+}
+
 // その部屋で知らせを待っている画面に、ポストが変わったことを SSE で知らせる
+// 送っている途中で取り除くこともあるので、Array.from で写してから回す
 function notify(room) {
   if (!listeners.has(room)) {
     return;
   }
-  for (const controller of listeners.get(room)) {
-    controller.enqueue('data: changed\n\n');
+  for (const controller of Array.from(listeners.get(room))) {
+    sendEvent(room, controller, 'data: changed\n\n');
   }
 }
+
+// 30 秒ごとに、全部の接続へ「生きているよ」のコメント行を送る（B9）
+// Cloudflare などの中継は、しばらく何も流れない接続を切ってしまうため。: で始まる行は、ブラウザが知らせとして扱わない
+const HEARTBEAT_MS = 30 * 1000;
+function sendHeartbeats() {
+  for (const [room, controllers] of listeners) {
+    for (const controller of Array.from(controllers)) {
+      sendEvent(room, controller, ': ping\n\n');
+    }
+  }
+}
+// bun --hot で読み込み直すたびにタイマーが増えないよう、前のタイマーを止めてから作る
+clearInterval(globalThis.heartbeatTimer);
+globalThis.heartbeatTimer = setInterval(sendHeartbeats, HEARTBEAT_MS);
 
 // オブジェクトを JSON の文字にして返事を作る。status は 200（うまくいった）や 400（頼み方がおかしい）などの番号
 function jsonResponse(status, body) {
@@ -207,13 +243,11 @@ function getEvents(req, server) {
     start(controller) {
       me = controller;
       controllers.add(controller);
-      controller.enqueue(': connected\n\n');
+      // retry: は、切れたときにブラウザが何ミリ秒後につなぎ直すか（B9）
+      controller.enqueue('retry: 3000\n: connected\n\n');
     },
     cancel() {
-      controllers.delete(me);
-      if (controllers.size === 0) {
-        listeners.delete(room);
-      }
+      removeListener(room, me);
     },
   });
 
