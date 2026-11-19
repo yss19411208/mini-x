@@ -40,7 +40,11 @@
           <div class="compose-body">
             <input id="name-input" type="text" placeholder="ニックネーム">
             <textarea id="text-input" placeholder="今日なにつくった？"></textarea>
-            <button id="post-btn">ポストする</button>
+            <!-- B1: 残りの文字数（script.js が数を入れる）と、ポストするボタンを横に並べる -->
+            <div class="compose-footer">
+              <span id="char-count"></span>
+              <button id="post-btn">ポストする</button>
+            </div>
           </div>
         </div>
 
