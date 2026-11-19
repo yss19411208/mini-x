@@ -68,6 +68,9 @@ function updateCharCount() {
   document.getElementById('post-btn').disabled = rest < 0;
 }
 
+// ポストを送っている途中かどうか。Ctrl + Enter の連打などで、同じポストを 2 回送らないための印（B3）
+let isPosting = false;
+
 // 投稿欄の名前と本文を、サーバーに「このポストを保存して」と送る（ミッション 3）
 async function addPost() {
   const name = document.getElementById('name-input').value;
@@ -76,23 +79,47 @@ async function addPost() {
   if (countChars(text) > MAX_TEXT_LENGTH) {
     return;
   }
-
-  const res = await fetch(API + '/posts?room=' + ROOM, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: name, text: text }),
-  });
-  // サーバーに断られたら（名前が空など）理由を出し、本文は消さずに残す
-  if (!res.ok) {
-    const error = await res.json();
-    alert(error.message);
+  // 前のポストを送っている途中なら、何もしない（B3）
+  if (isPosting) {
     return;
   }
 
-  // 送り終わったら本文の欄を空にして、残りの文字数を戻し、タイムラインを取り直す
-  document.getElementById('text-input').value = '';
-  updateCharCount();
-  showPosts();
+  isPosting = true;
+  try {
+    const res = await fetch(API + '/posts?room=' + ROOM, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, text: text }),
+    });
+    // サーバーに断られたら（名前が空など）理由を出し、本文は消さずに残す
+    if (!res.ok) {
+      const error = await res.json();
+      alert(error.message);
+      return;
+    }
+
+    // 送り終わったら本文の欄を空にして、残りの文字数を戻し、タイムラインを取り直す
+    document.getElementById('text-input').value = '';
+    updateCharCount();
+    showPosts();
+  } finally {
+    // うまくいっても、失敗しても、送り終わったら次のポストを送れるようにする
+    isPosting = false;
+  }
+}
+
+// 本文の欄で Ctrl + Enter（Mac は Cmd + Enter）が押されたらポストする（B3）
+function postByShortcut(event) {
+  // 日本語の変換中の Enter は「変換を決める」ためのものなので、ポストしない
+  if (event.isComposing) {
+    return;
+  }
+  // ctrlKey は Ctrl、metaKey は Mac の Cmd（⌘）が押されているか
+  if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+    // 本文に改行が入らないようにしてから送る
+    event.preventDefault();
+    addPost();
+  }
 }
 
 // サーバーに「この id のポストのいいねを 1 増やして」と頼み、タイムラインを取り直す（ミッション 4）
@@ -106,6 +133,8 @@ document.getElementById('post-btn').addEventListener('click', addPost);
 document.getElementById('reload-btn').addEventListener('click', showPosts);
 // 本文に文字を打つたびに、残りの文字数を数え直す（B1）
 document.getElementById('text-input').addEventListener('input', updateCharCount);
+// 本文の欄でキーが押されたら、Ctrl + Enter かどうかを確かめる（B3）
+document.getElementById('text-input').addEventListener('keydown', postByShortcut);
 
 // ページを開いたときに 1 回、残りの文字数とタイムラインを表示する
 updateCharCount();
