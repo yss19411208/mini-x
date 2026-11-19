@@ -4,7 +4,8 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ミニX</title>
+    <!-- A1: アプリの名前。公開先 dreamyard（夢の庭）にちなんで「ユメバ」 -->
+    <title>ユメバ</title>
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
@@ -12,7 +13,7 @@
     <div class="layout">
       <!-- 左のメニュー。はじめから用意してある飾りで、押しても何も起きない -->
       <nav class="sidebar-left">
-        <div class="wordmark">ミニX</div>
+        <div class="wordmark">ユメバ</div>
         <a class="nav-item nav-home">ホーム</a>
         <a class="nav-item nav-search">話題を検索</a>
         <a class="nav-item nav-notifications">通知</a>
@@ -33,12 +34,12 @@
           <button id="reload-btn">更新</button>
         </header>
 
-        <!-- ② 投稿欄（ミッション 0）。script.js が id でこの入力欄とボタンを探す -->
+        <!-- ② 投稿欄（ミッション 0）。A2 で入力欄の薄い文字（placeholder）を変えた。script.js が id でこの入力欄とボタンを探す -->
         <div class="compose">
           <img class="avatar" src="icon.svg" alt="">
           <div class="compose-body">
-            <input id="name-input" type="text" placeholder="名前">
-            <textarea id="text-input" placeholder="いまどうしてる？"></textarea>
+            <input id="name-input" type="text" placeholder="ニックネーム">
+            <textarea id="text-input" placeholder="今日なにつくった？"></textarea>
             <button id="post-btn">ポストする</button>
           </div>
         </div>
@@ -64,11 +65,12 @@
       <aside class="sidebar-right">
         <div class="search-box">検索</div>
         <section class="trends">
-          <h2>いまどうしてる？</h2>
+          <!-- A5: トレンド欄を自分たちの話題（高専・ものづくり）にした。件数は飾りの決め打ち -->
+          <h2>いまつくってる？</h2>
           <div class="trend">
-            <span class="trend-meta">日本のトレンド</span>
-            <span class="trend-name">#ミニX</span>
-            <span class="trend-meta">1,234件のポスト</span>
+            <span class="trend-meta">高専・トレンド</span>
+            <span class="trend-name">#プロコン</span>
+            <span class="trend-meta">1,024件のポスト</span>
           </div>
           <div class="trend">
             <span class="trend-meta">学校・トレンド</span>
@@ -77,13 +79,13 @@
           </div>
           <div class="trend">
             <span class="trend-meta">テクノロジー・トレンド</span>
-            <span class="trend-name">#JavaScript</span>
-            <span class="trend-meta">8,901件のポスト</span>
+            <span class="trend-name">#Bun</span>
+            <span class="trend-meta">256件のポスト</span>
           </div>
           <div class="trend">
-            <span class="trend-meta">テクノロジー・トレンド</span>
-            <span class="trend-name">#fetch</span>
-            <span class="trend-meta">89件のポスト</span>
+            <span class="trend-meta">ものづくり・トレンド</span>
+            <span class="trend-name">#締切まであと11日</span>
+            <span class="trend-meta">30件のポスト</span>
           </div>
           <div class="trend-more">さらに表示</div>
         </section>
