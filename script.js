@@ -5,6 +5,24 @@ const ROOM = 'sample';
 // 本文の長さの上限。server.js の MAX_TEXT_LENGTH と同じ数にする（B1）
 const MAX_TEXT_LENGTH = 140;
 
+// ポストした時刻を「たった今」「3分前」「2時間前」、1 日より前なら「11/19 16:02」の形の文字にする（B2）
+function formatTime(createdAt) {
+  const date = new Date(createdAt);
+  const minutes = Math.floor((Date.now() - date.getTime()) / (60 * 1000));
+  if (minutes < 1) {
+    return 'たった今';
+  }
+  if (minutes < 60) {
+    return minutes + '分前';
+  }
+  if (minutes < 24 * 60) {
+    return Math.floor(minutes / 60) + '時間前';
+  }
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  return (date.getMonth() + 1) + '/' + date.getDate() + ' ' + hh + ':' + mm;
+}
+
 // サーバーにポストの一覧を「ください」と頼み、投稿カードにしてタイムラインに並べる（ミッション 1・2・4）
 async function showPosts() {
   // サーバーからポストの一覧を取ってくる（ミッション 2）
@@ -21,6 +39,11 @@ async function showPosts() {
     const card = template.content.cloneNode(true);
     card.querySelector('.name').textContent = post.name;
     card.querySelector('.text').textContent = post.text;
+    // ポストした時刻を出す。マウスを乗せると、日付と秒までの時刻が見える（B2）
+    const time = card.querySelector('.time');
+    time.textContent = formatTime(post.createdAt);
+    time.dateTime = post.createdAt;
+    time.title = new Date(post.createdAt).toLocaleString('ja-JP');
     // いいねの数を出し、ハートが押されたらこのポストの id で addLike を呼ぶ（ミッション 4）
     card.querySelector('.like-count').textContent = post.likes;
     card.querySelector('.like-btn').addEventListener('click', function () {

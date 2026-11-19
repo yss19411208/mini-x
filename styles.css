@@ -542,3 +542,13 @@ main {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* B2: 名前の横に、薄い色でポストした時刻を出す。「・」で名前と区切る */
+.time {
+  color: var(--text-sub);
+  font-size: 14px;
+}
+
+.time::before {
+  content: "・";
+}
