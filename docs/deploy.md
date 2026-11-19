@@ -34,7 +34,8 @@
 
 AI が済ませたこと（sudo なし）:
 1. `cloudflared tunnel create minix`（認証ファイルは `~/.cloudflared/<ID>.json`）
-2. `cloudflared tunnel route dns minix minix.dreamyard.cc`（DNS に CNAME ができる）
+2. `cloudflared --config /etc/cloudflared/minix.yml tunnel route dns --overwrite-dns <ID> minix.dreamyard.cc`（DNS に CNAME ができる）
+   - **注意**: `--config` をつけないと、cloudflared は `~/.cloudflared/config.yml`（別のサービスのトンネル）を読み、CNAME が**そちらのトンネル**に向いてしまう。1 回目はこれで 404 になったので、ミニX のトンネルに向け直した
 3. `~/minix-deploy/` に Bun（公式の `bun-linux-aarch64.zip`、`SHASUMS256.txt` で確かめた）と `deploy/` のファイルを置く
 4. サーバーで `127.0.0.1:8101` に一時的に起動し、`GET /`＝200・ポスト＝201 を確かめて止めた
 
@@ -65,6 +66,9 @@ AI が済ませたこと（sudo なし）:
    - 条件: `http.host eq "minix.dreamyard.cc" and not http.request.method in {"GET" "POST" "OPTIONS" "HEAD"}` → **Block**
 5. **Bot Fight Mode**（Security → Bots）はゾーン全体に効く。draftrix のアプリの通信を止めないか分からないので、**今は変えない**。
 6. 公開のあと、Analytics → Traffic で `minix.dreamyard.cc` のリクエストが見えることを確かめる。
+7. （任意）Cloudflare Web Analytics が `beacon.min.js` を自動で差しこんでいる。ミニX の CSP（`script-src 'self'`）がこれを止めるので、ブラウザのコンソールに赤いエラーが 1 行出る。画面の動きには影響しない。気になるなら Web Analytics の設定で minix の自動挿入を切る。
+
+**キャッシュに注意**: Cloudflare は `.js`・`.css`・`.svg` を自動でキャッシュする（404 も数分キャッシュする）。更新しても古い `script.js` が配られることがあるので、5 章の最後の「キャッシュを消す」をする。
 
 ## 5. 更新のしかた（git pull から再起動まで）
 
@@ -77,6 +81,8 @@ sudo systemctl restart minix       # アプリを起動し直す（ポストは�
 systemctl status minix --no-pager  # active (running) を確かめる
 curl -s -o /dev/null -w '%{http_code}\n' https://minix.dreamyard.cc/   # 200 なら OK
 ```
+
+`script.js`・`styles.css` などを変えたときは、Cloudflare のキャッシュを消す: 画面の Caching → Configuration → Purge Cache → **Custom Purge** で `https://minix.dreamyard.cc/script.js` などを入れる（「Purge Everything」はほかのサブドメインのキャッシュも消すので使わない）。
 
 うまく動かないときは、1 つ前の版に戻す:
 
@@ -93,12 +99,13 @@ sudo systemctl restart minix
 
 ```
 sudo systemctl disable --now cloudflared-minix minix
+# トンネルを消す（sudo 不要）。--config をつけて、別のサービスのトンネルの設定（~/.cloudflared/config.yml）を読ませない
+cloudflared --config /etc/cloudflared/minix.yml tunnel delete minix
 sudo rm /etc/systemd/system/cloudflared-minix.service /etc/systemd/system/minix.service
 sudo rm /etc/cloudflared/minix.yml /etc/cloudflared/minix-credentials.json
 sudo systemctl daemon-reload
 sudo rm -r /opt/minix
 sudo userdel minix; sudo userdel minix-tunnel
-cloudflared tunnel delete minix    # トンネルを消す（sudo 不要）
 ```
 
 そのあと Cloudflare の画面で、DNS の `minix` の CNAME と、4 章で足したルールを消す。既存のファイルは変えていないので、ほかに戻すものはない。
