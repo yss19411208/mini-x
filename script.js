@@ -1,6 +1,7 @@
 // ミニX の動きを書くファイル。サーバーとポストをやりとりして、タイムラインに並べる
 // API はサーバーの場所（URL）、ROOM は部屋の名前。同じ部屋の人どうしで、ポストが見える
-const API = 'http://localhost:8000';
+// 手元（http）では localhost:8000 のサーバー。公開先（https://minix.dreamyard.cc）では、画面を配ったのと同じ場所
+const API = location.protocol === 'https:' ? location.origin : 'http://localhost:8000';
 const ROOM = 'sample';
 // 本文の長さの上限。server.js の MAX_TEXT_LENGTH と同じ数にする（B1）
 const MAX_TEXT_LENGTH = 140;
