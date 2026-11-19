@@ -6,7 +6,7 @@
 【GitHubリポジトリのURL】※提出必須
 https://github.com/yss19411208/mini-x
 公開先: https://minix.dreamyard.cc （React 版 /react/ 、しりとり部屋 /?room=shiritori ）
-（スクショ: docs/images/ に入れたものを貼る）
+スクショ: docs/images/home.png（ホームと夢のたまご）・shiritori.png（しりとり部屋）・react.png（React 版）
 
 【取り組んだ内容・追加した機能】
 応用ミッションの A1〜A6・B1〜B11 をすべて実装しました（B6 で本体を TypeScript に、B10・B11 で React 版を react/ に）。
