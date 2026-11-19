@@ -227,10 +227,12 @@ describe('しりとり部屋（オリジナル機能 1）', () => {
     expect((await sendPost('たろう', '漢字もOK')).status).toBe(201);
   });
 
-  test('shiritori.ts も JavaScript にして配られる（画面が import する）', async () => {
-    const res = await fetch(BASE + '/shiritori.ts');
-    expect(res.headers.get('Content-Type')).toContain('text/javascript');
-    expect(await res.text()).toContain('function checkShiritori');
+  test('画面が import する shiritori.ts と format.ts も JavaScript にして配られる', async () => {
+    for (const [path, name] of [['/shiritori.ts', 'checkShiritori'], ['/format.ts', 'avatarColor']]) {
+      const res = await fetch(BASE + path);
+      expect(res.headers.get('Content-Type')).toContain('text/javascript');
+      expect(await res.text()).toContain('function ' + name);
+    }
   });
 });
 
