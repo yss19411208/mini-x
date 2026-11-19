@@ -3,14 +3,33 @@
 //
 // 覚えておく人の数にも上限（maxKeys）を付ける。上限が無いと、IP を変えながら送られたときに、
 // この記録そのものがメモリを食いつぶしてしまう
-export function createRateLimiter({ limit, windowMs, maxKeys = 10000 }) {
-  // key → { count: 回数, resetAt: 数え直す時刻 }。Map は入れた順を覚えているので、先頭がいちばん古い
-  const counters = new Map();
+// hit の答え。まだ使えるなら { ok: true }、使いすぎなら { ok: false, retryAfter: 待つ秒数 }
+export type HitResult = { ok: true } | { ok: false; retryAfter: number };
+
+// createRateLimiter が返すもの
+export type RateLimiter = {
+  hit: (key: string) => HitResult;
+  sweep: (now: number) => void;
+  size: () => number;
+};
+
+type RateLimiterOptions = {
+  limit: number; // 区切りのあいだに使ってよい回数
+  windowMs: number; // 区切りの長さ（ミリ秒）
+  maxKeys?: number; // 覚えておく人の数の上限
+};
+
+// 1 人分の記録。count は回数、resetAt は数え直す時刻
+type Counter = { count: number; resetAt: number };
+
+export function createRateLimiter({ limit, windowMs, maxKeys = 10000 }: RateLimiterOptions): RateLimiter {
+  // key → 1 人分の記録。Map は入れた順を覚えているので、先頭がいちばん古い
+  const counters = new Map<string, Counter>();
 
   // 区切りが過ぎた記録を消す
   // 記録は数えはじめた順に並んでいて、どの記録も区切りの長さは同じなので、先頭ほど早く区切りが過ぎる。
   // だから先頭から見て、まだ区切りが過ぎていない記録に当たったら、そこで止めてよい（全部を見なくて済む）
-  function sweep(now) {
+  function sweep(now: number): void {
     for (const [key, counter] of counters) {
       if (counter.resetAt > now) {
         break;
@@ -19,8 +38,8 @@ export function createRateLimiter({ limit, windowMs, maxKeys = 10000 }) {
     }
   }
 
-  // 1 回分を数える。まだ使えるなら { ok: true }、使いすぎなら { ok: false, retryAfter: 待つ秒数 }
-  function hit(key) {
+  // 1 回分を数える
+  function hit(key: string): HitResult {
     const now = Date.now();
     let counter = counters.get(key);
     if (!counter || counter.resetAt <= now) {
@@ -28,7 +47,7 @@ export function createRateLimiter({ limit, windowMs, maxKeys = 10000 }) {
       if (!counter && counters.size >= maxKeys) {
         sweep(now);
         if (counters.size >= maxKeys) {
-          counters.delete(counters.keys().next().value);
+          counters.delete(counters.keys().next().value!);
         }
       }
       counter = { count: 0, resetAt: now + windowMs };

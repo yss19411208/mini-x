@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ミニX の画面の部品と並びを書くファイル。見た目は styles.css、動きは script.js が受け持つ -->
+<!-- ミニX の画面の部品と並びを書くファイル。見た目は styles.css、動きは script.ts が受け持つ -->
 <html lang="ja">
   <head>
     <meta charset="UTF-8">
@@ -31,20 +31,20 @@
         <!-- ① ヘッダー（ミッション 0）。更新ボタンはミッション 2 で足した -->
         <header class="header">
           <h1>ホーム</h1>
-          <!-- B9: SSE でつながっているか（ライブ / つなぎ直し中）を出す。script.js が文字を入れる -->
+          <!-- B9: SSE でつながっているか（ライブ / つなぎ直し中）を出す。script.ts が文字を入れる -->
           <div class="header-tools">
             <span id="live-status" class="live-status"></span>
             <button id="reload-btn">更新</button>
           </div>
         </header>
 
-        <!-- ② 投稿欄（ミッション 0）。A2 で入力欄の薄い文字（placeholder）を変えた。script.js が id でこの入力欄とボタンを探す -->
+        <!-- ② 投稿欄（ミッション 0）。A2 で入力欄の薄い文字（placeholder）を変えた。script.ts が id でこの入力欄とボタンを探す -->
         <div class="compose">
           <img class="avatar" src="icon.svg" alt="">
           <div class="compose-body">
             <input id="name-input" type="text" placeholder="ニックネーム">
             <textarea id="text-input" placeholder="今日なにつくった？"></textarea>
-            <!-- B1: 残りの文字数（script.js が数を入れる）と、ポストするボタンを横に並べる -->
+            <!-- B1: 残りの文字数（script.ts が数を入れる）と、ポストするボタンを横に並べる -->
             <div class="compose-footer">
               <span id="char-count"></span>
               <button id="post-btn" title="Ctrl + Enter（Mac は ⌘ + Enter）でもポストできます">ポストする</button>
@@ -52,17 +52,17 @@
           </div>
         </div>
 
-        <!-- ④ タイムライン（ミッション 0）。中身は空で、script.js が投稿カードを入れる -->
+        <!-- ④ タイムライン（ミッション 0）。中身は空で、script.ts が投稿カードを入れる -->
         <ul id="timeline"></ul>
 
-        <!-- ③ 投稿カードの見本（ミッション 0）。画面には出ず、script.js がコピーして使う -->
+        <!-- ③ 投稿カードの見本（ミッション 0）。画面には出ず、script.ts がコピーして使う -->
         <template id="post-template">
           <li class="post">
-            <!-- B7: 人ごとに違うアイコン。script.js が名前の 1 文字目と、名前で決まる背景の色を入れる -->
+            <!-- B7: 人ごとに違うアイコン。script.ts が名前の 1 文字目と、名前で決まる背景の色を入れる -->
             <div class="avatar initial" aria-hidden="true"></div>
             <div class="post-body">
               <span class="name"></span>
-              <!-- B2: ポストした時刻。script.js が「3分前」などの文字を入れる -->
+              <!-- B2: ポストした時刻。script.ts が「3分前」などの文字を入れる -->
               <time class="time"></time>
               <p class="text"></p>
               <!-- いいねボタン（ミッション 4）。ハートの横にいいねの数が入る -->
@@ -103,7 +103,7 @@
       </aside>
     </div>
 
-    <!-- 動きを書いた script.js を読み込む -->
-    <script type="module" src="script.js"></script>
+    <!-- 動きを書いた script.ts を読み込む（B6。server.ts が JavaScript に直して配る） -->
+    <script type="module" src="script.ts"></script>
   </body>
 </html>

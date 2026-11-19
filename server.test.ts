@@ -1,4 +1,4 @@
-// server.js の入力チェックを確かめるテスト。bun test で動かす
+// server.ts の入力チェックを確かめるテスト。bun test で動かす
 // 本物のサーバーを別のポートで立て、fetch で頼みごとを送って、返事を確かめる
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 
@@ -8,7 +8,7 @@ const BASE = 'http://localhost:' + PORT;
 // テストのたびに新しい部屋を使い、ほかのテストのポストと混ざらないようにする
 const ROOM = 'test-' + Date.now();
 
-let serverProcess;
+let serverProcess: ReturnType<typeof Bun.spawn>;
 
 // サーバーが返事をするようになるまで、少しずつ待つ
 async function waitForServer() {
@@ -24,7 +24,7 @@ async function waitForServer() {
 }
 
 // ポストを 1 件送り、返事を返す
-function sendPost(name, text, room = ROOM) {
+function sendPost(name: string, text: string, room = ROOM): Promise<Response> {
   return fetch(BASE + '/posts?room=' + room, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -33,7 +33,7 @@ function sendPost(name, text, room = ROOM) {
 }
 
 beforeAll(async () => {
-  serverProcess = Bun.spawn(['bun', 'server.js'], {
+  serverProcess = Bun.spawn(['bun', 'server.ts'], {
     cwd: import.meta.dir,
     // このテストは同じ PC から何十回も送るので、回数の制限は大きくしておく（制限は hardening.test.js で確かめる）
     env: {
@@ -122,7 +122,7 @@ describe('ポストした時刻（B2 で使う createdAt）', () => {
 });
 
 // SSE の接続から、ある文字が届くまで読み進める。届かなければ 3 秒であきらめて失敗にする
-async function readUntil(reader, expected) {
+async function readUntil(reader: ReadableStreamDefaultReader<Uint8Array>, expected: string): Promise<string> {
   const decoder = new TextDecoder();
   let received = '';
   const deadline = Date.now() + 3000;
@@ -144,7 +144,7 @@ describe('SSE の知らせ（B9）', () => {
     const room = ROOM + '-sse';
     const res = await fetch(BASE + '/posts/events?room=' + room);
     expect(res.headers.get('Content-Type')).toContain('text/event-stream');
-    const reader = res.body.getReader();
+    const reader = res.body!.getReader();
     try {
       expect(await readUntil(reader, ': connected')).toContain('retry: 3000');
 
@@ -161,5 +161,23 @@ describe('SSE の知らせ（B9）', () => {
   test('使えない部屋名ではつなげない', async () => {
     const res = await fetch(BASE + '/posts/events?room=' + encodeURIComponent('へや'));
     expect(res.status).toBe(400);
+  });
+});
+
+describe('画面のファイル（B6）', () => {
+  test('script.ts は、型を取り除いた JavaScript として配られる', async () => {
+    const res = await fetch(BASE + '/script.ts');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toContain('text/javascript');
+    const code = await res.text();
+    expect(code).toContain('function showPosts');
+    // 型の書き方（type Post = { ... } や : string）が残っていない
+    expect(code).not.toContain('type Post');
+    expect(code).not.toContain('): Promise<void>');
+  });
+
+  test('index.html は script.ts を読み込む', async () => {
+    const html = await (await fetch(BASE + '/')).text();
+    expect(html).toContain('src="script.ts"');
   });
 });

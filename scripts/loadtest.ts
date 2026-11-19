@@ -1,5 +1,5 @@
 // 短い負荷試験（連打）。サーバーを立て、いろいろな連打をして、落ちないこととメモリが増え続けないことを確かめる
-// 使い方: bun scripts/loadtest.js [サーバーのファイル（決めなければ server.js）]
+// 使い方: bun scripts/loadtest.ts [サーバーのファイル（決めなければ server.ts）]
 // 手元の PC だけで動かす。公開しているサーバーには向けないこと
 //
 // 試すこと（それぞれ ROUND_MS ミリ秒）
@@ -14,7 +14,7 @@ const PORT = 8790;
 const BASE = 'http://localhost:' + PORT;
 const ROUND_MS = 8000;
 const CONCURRENCY = 50;
-const serverFile = process.argv[2] || 'server.js';
+const serverFile = process.argv[2] || 'server.ts';
 
 // サーバーを立てる（cwd はサーバーのファイルのあるフォルダ）
 const path = await import('node:path');
@@ -39,8 +39,9 @@ function nextIp() {
 }
 
 // 決めた時間だけ、CONCURRENCY 本で makeRequest を回し続け、返事の番号ごとの数を返す
-async function hammer(makeRequest) {
-  const counts = {};
+type Counts = Record<string, number>;
+async function hammer(makeRequest: () => Promise<Response>): Promise<Counts> {
+  const counts: Counts = {};
   const end = Date.now() + ROUND_MS;
   async function worker() {
     while (Date.now() < end) {
@@ -59,7 +60,7 @@ async function hammer(makeRequest) {
   return counts;
 }
 
-function post(room, ip) {
+function post(room: string, ip: string): Promise<Response> {
   return fetch(BASE + '/posts?room=' + room, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': ip },
@@ -67,8 +68,8 @@ function post(room, ip) {
   });
 }
 
-const results = [];
-function record(name, counts) {
+const results: { name: string; counts: Counts; memory: number }[] = [];
+function record(name: string, counts: Counts): void {
   const memory = serverMemoryMb();
   results.push({ name, counts, memory });
   console.log(name.padEnd(8), 'メモリ', String(memory).padStart(4), 'MB', JSON.stringify(counts));
@@ -114,20 +115,21 @@ for (const round of [1, 2]) {
 // Bun の fetch は同じ相手への同時接続の数に上限があり、つなぎっぱなしの SSE を何百本も開けないので、
 // ここだけは TCP の接続を直接開いて、HTTP の頼みごとを手で書く。返事の 1 行目（HTTP/1.1 200 OK など）で番号を数える
 const net = await import('node:net');
-function openSse(ip) {
+type SseResult = { status: string; socket: import('node:net').Socket };
+function openSse(ip: string): Promise<SseResult> {
   return new Promise((resolve) => {
     const socket = net.connect(PORT, '127.0.0.1');
     socket.once('connect', () => {
       socket.write('GET /posts/events?room=load HTTP/1.1\r\nHost: localhost\r\nCF-Connecting-IP: ' + ip + '\r\n\r\n');
     });
-    socket.once('data', (chunk) => {
+    socket.once('data', (chunk: Buffer) => {
       resolve({ status: chunk.toString().split(' ')[1], socket });
     });
     socket.once('error', () => resolve({ status: 'error', socket }));
   });
 }
-const sockets = [];
-const sseCounts = {};
+const sockets: SseResult['socket'][] = [];
+const sseCounts: Counts = {};
 for (let i = 0; i < 700; i++) {
   const { status, socket } = await openSse(nextIp());
   sseCounts[status] = (sseCounts[status] || 0) + 1;
@@ -145,3 +147,6 @@ const alive = await fetch(BASE + '/posts?room=after', { headers: { 'CF-Connectin
 record('after', { alive: alive.status });
 
 serverProcess.kill();
+
+// このファイルをモジュールとして扱わせる印（一番上の階で await を使うため）
+export {};

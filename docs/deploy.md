@@ -68,7 +68,7 @@ AI が済ませたこと（sudo なし）:
 6. 公開のあと、Analytics → Traffic で `minix.dreamyard.cc` のリクエストが見えることを確かめる。
 7. （任意）Cloudflare Web Analytics が `beacon.min.js` を自動で差しこんでいる。ミニX の CSP（`script-src 'self'`）がこれを止めるので、ブラウザのコンソールに赤いエラーが 1 行出る。画面の動きには影響しない。気になるなら Web Analytics の設定で minix の自動挿入を切る。
 
-**キャッシュに注意**: Cloudflare は `.js`・`.css`・`.svg` を自動でキャッシュする（404 も数分キャッシュする）。更新しても古い `script.js` が配られることがあるので、5 章の最後の「キャッシュを消す」をする。
+**キャッシュに注意**: Cloudflare は `.js`・`.css`・`.svg` を自動でキャッシュする（404 も数分キャッシュする）。更新しても古い `script.ts`・`styles.css` が配られることがあるので、5 章の最後の「キャッシュを消す」をする。
 
 ## 5. 更新のしかた（git pull から再起動まで）
 
@@ -82,7 +82,9 @@ systemctl status minix --no-pager  # active (running) を確かめる
 curl -s -o /dev/null -w '%{http_code}\n' https://minix.dreamyard.cc/   # 200 なら OK
 ```
 
-`script.js`・`styles.css` などを変えたときは、Cloudflare のキャッシュを消す: 画面の Caching → Configuration → Purge Cache → **Custom Purge** で `https://minix.dreamyard.cc/script.js` などを入れる（「Purge Everything」はほかのサブドメインのキャッシュも消すので使わない）。
+**B6（TypeScript 化）のあと**: サーバーの本体は `server.ts` になった。本番の `/etc/systemd/system/minix.service` は今も `bun server.js` で起動しているが、`server.js` は `server.ts` を読み込むだけの 1 行なので、**設定を変えずに上の手順だけで更新できる**。見本の `deploy/minix.service` は `server.ts` を直接起動する形にしてあるので、次に設定を作り直すときはそちらに合わせてよい（今は変えなくてよい）。本番では `bun install` は要らない（`typescript` などは型の検査のためだけ）。
+
+`script.ts`・`styles.css` などを変えたときは、Cloudflare のキャッシュを消す: 画面の Caching → Configuration → Purge Cache → **Custom Purge** で `https://minix.dreamyard.cc/script.ts` などを入れる（「Purge Everything」はほかのサブドメインのキャッシュも消すので使わない）。
 
 うまく動かないときは、1 つ前の版に戻す:
 

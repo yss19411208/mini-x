@@ -11,7 +11,7 @@ Wants=network-online.target
 User=minix
 Group=minix
 WorkingDirectory=/opt/minix/app
-ExecStart=/opt/minix/bun/bun server.js
+ExecStart=/opt/minix/bun/bun server.ts
 
 # 待ち受けはサーバーの中だけ。8000 番はほかのサービスが使っているので 8100 番
 Environment=HOST=127.0.0.1

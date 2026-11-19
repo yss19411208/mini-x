@@ -16,9 +16,10 @@ const SMALL_LIMITS = {
 
 // trusted: 同じ PC の中継から来たときに CF-Connecting-IP を信じるサーバー（テストでは「人」をヘッダで分けられる）
 // untrusted: ヘッダを信じないサーバー（ふだんの設定。ヘッダを書き換えても制限をすり抜けられないことを確かめる）
-const TRUSTED = { port: 8766, env: { ...SMALL_LIMITS, MINIX_TRUST_LOCAL_PROXY: '1' } };
-const UNTRUSTED = { port: 8767, env: { ...SMALL_LIMITS } };
-const processes = [];
+const TRUSTED: TestServer = { port: 8766, env: { ...SMALL_LIMITS, MINIX_TRUST_LOCAL_PROXY: '1' } };
+const UNTRUSTED: TestServer = { port: 8767, env: { ...SMALL_LIMITS } };
+type TestServer = { port: number; env: Record<string, string> };
+const processes: ReturnType<typeof Bun.spawn>[] = [];
 
 // テストのたびに違う「人」（IP）にして、ほかのテストの回数と混ざらないようにする
 let ipCounter = 0;
@@ -28,8 +29,8 @@ function newIp() {
 }
 
 // サーバーを立てて、返事をするようになるまで待つ
-async function startServer({ port, env }) {
-  processes.push(Bun.spawn(['bun', 'server.js'], {
+async function startServer({ port, env }: TestServer): Promise<void> {
+  processes.push(Bun.spawn(['bun', 'server.ts'], {
     cwd: import.meta.dir,
     env: { ...process.env, ...env, PORT: String(port) },
     stdout: 'ignore',
@@ -47,13 +48,14 @@ async function startServer({ port, env }) {
 }
 
 // trusted のサーバーに、ip の人として頼みごとを送る
-function request(path, ip, options = {}, port = TRUSTED.port) {
-  const headers = { 'CF-Connecting-IP': ip, ...(options.headers || {}) };
+function request(path: string, ip: string, options: RequestInit = {}, port = TRUSTED.port): Promise<Response> {
+  const headers = { 'CF-Connecting-IP': ip, ...((options.headers as Record<string, string>) || {}) };
   return fetch('http://localhost:' + port + path, { ...options, headers: headers });
 }
 
 // ポストを 1 件送る
-function sendPost(room, ip, body = { name: 'たろう', text: 'こんにちは' }, port = TRUSTED.port) {
+// body に文字を渡すと、JSON にせずそのまま送る（壊れた JSON を試すため）
+function sendPost(room: string, ip: string, body: object | string = { name: 'たろう', text: 'こんにちは' }, port = TRUSTED.port): Promise<Response> {
   return request('/posts?room=' + room, ip, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -106,7 +108,7 @@ describe('回数の制限（429）', () => {
   test('いいねは全部で 1 分に 5 回まで（ポストを変えても）', async () => {
     const ip = newIp();
     const posts = await (await request('/posts?room=limit-likes', newIp())).json();
-    const statuses = [];
+    const statuses: number[] = [];
     for (let i = 0; i < 6; i++) {
       const post = posts[i % posts.length];
       const res = await request('/posts/' + post.id + '/like?room=limit-likes', ip, { method: 'POST' });
@@ -117,7 +119,7 @@ describe('回数の制限（429）', () => {
 
   test('ヘッダを信じないサーバーでは、CF-Connecting-IP を変えても制限をすり抜けられない', async () => {
     // 同じ PC から、毎回違う IP を名乗って送る
-    const statuses = [];
+    const statuses: number[] = [];
     for (let i = 0; i < 4; i++) {
       statuses.push((await sendPost('spoof', newIp(), undefined, UNTRUSTED.port)).status);
     }
@@ -172,7 +174,7 @@ describe('部屋の数の上限（3 部屋）', () => {
 
   test('1 人が新しい部屋を 1 分に 6 つ作ろうとすると 429', async () => {
     const ip = newIp();
-    const statuses = [];
+    const statuses: number[] = [];
     for (let i = 0; i < 6; i++) {
       statuses.push((await request('/posts?room=many-' + i, ip)).status);
     }
@@ -183,9 +185,11 @@ describe('部屋の数の上限（3 部屋）', () => {
 
 describe('SSE の接続数', () => {
   // SSE をつなぎ、返事と読み手を返す
-  async function connect(ip) {
+  // つなげなかったとき（429 など）は reader が無いので、閉じるときは close を使う
+  async function connect(ip: string) {
     const res = await request('/posts/events?room=sse', ip);
-    return { status: res.status, reader: res.status === 200 ? res.body.getReader() : null };
+    const reader = res.status === 200 ? res.body!.getReader() : null;
+    return { status: res.status, reader: reader, close: async () => { await reader?.cancel(); } };
   }
 
   test('1 人 2 本まで。3 本目は 429。1 本閉じればまたつなげる', async () => {
@@ -194,19 +198,19 @@ describe('SSE の接続数', () => {
     const b = await connect(ip);
     const c = await connect(ip);
     expect([a.status, b.status, c.status]).toEqual([200, 200, 429]);
-    await a.reader.cancel();
+    await a.close();
     // 閉じたことがサーバーに伝わるまで、少し待ちながら試す
-    let again;
+    let again = await connect(ip);
     for (let i = 0; i < 20; i++) {
-      await Bun.sleep(100);
-      again = await connect(ip);
       if (again.status === 200) {
         break;
       }
+      await Bun.sleep(100);
+      again = await connect(ip);
     }
     expect(again.status).toBe(200);
-    await b.reader.cancel();
-    await again.reader.cancel();
+    await b.close();
+    await again.close();
   });
 
   test('全体で 4 本まで。5 本目は 503', async () => {
@@ -218,7 +222,7 @@ describe('SSE の接続数', () => {
     expect(opened.map((o) => o.status)).toEqual([200, 200, 200, 200]);
     expect(fifth.status).toBe(503);
     for (const o of opened) {
-      await o.reader.cancel();
+      await o.close();
     }
   });
 
@@ -229,7 +233,7 @@ describe('SSE の接続数', () => {
     const started = Date.now();
     // 切られるまで読み続ける（ping が来ても読み続ける）
     while (true) {
-      const { done } = await reader.read();
+      const { done } = await reader!.read();
       if (done) {
         break;
       }
