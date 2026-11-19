@@ -1,0 +1,19 @@
+{
+  // 型の検査（bunx tsc）の設定。Bun が TypeScript をそのまま動かすので、tsc は検査だけ（ファイルは作らない）
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    // 画面（script.ts）は DOM、サーバー（server.ts）は Bun の型を使う
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": ["bun"],
+    "strict": true,
+    "noEmit": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "skipLibCheck": true,
+    // import の行に .ts と書けるようにする（Bun はそのまま読める）
+    "allowImportingTsExtensions": true
+  },
+  "include": ["*.ts", "scripts/*.ts"]
+}

@@ -2,6 +2,7 @@
 // Cloudflare 経由のときは、相手の本当の IP は CF-Connecting-IP ヘッダに入っている。
 // ただし、このヘッダは誰でも書けるので、Cloudflare の IP から来たときだけ信じる。
 import { BlockList, isIPv4, isIPv6 } from 'node:net';
+import type { Server } from 'bun';
 
 // Cloudflare の IP の範囲。出典: https://www.cloudflare.com/ips-v4 と https://www.cloudflare.com/ips-v6（2026-11-19 に取得）
 // Cloudflare が範囲を変えたら、ここも直す
@@ -28,13 +29,13 @@ for (const range of CLOUDFLARE_IPV6) {
 }
 
 // IPv6 の形で書かれた IPv4（::ffff:1.2.3.4）を、ふつうの IPv4（1.2.3.4）に直す
-function unwrapMappedIPv4(ip) {
+function unwrapMappedIPv4(ip: string): string {
   const match = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(ip);
   return match ? match[1] : ip;
 }
 
 // その IP が Cloudflare の範囲に入っているか
-export function isCloudflare(ip) {
+export function isCloudflare(ip: string): boolean {
   const address = unwrapMappedIPv4(ip);
   if (isIPv4(address)) {
     return cloudflare.check(address, 'ipv4');
@@ -46,7 +47,7 @@ export function isCloudflare(ip) {
 }
 
 // その IP がこの PC 自身（127.0.0.1 や ::1）か
-function isLoopback(ip) {
+function isLoopback(ip: string): boolean {
   const address = unwrapMappedIPv4(ip);
   return address.startsWith('127.') || address === '::1';
 }
@@ -55,7 +56,7 @@ function isLoopback(ip) {
 // trustLocalProxy は、同じサーバーの中の中継（Cloudflare Tunnel の cloudflared や nginx）から来たときも
 // CF-Connecting-IP を信じるかどうか。中継を使うときだけ true にする（使わないのに true にすると、
 // その PC の中から来た頼みごとがヘッダで IP を名乗れてしまう）
-export function clientIp(req, server, trustLocalProxy) {
+export function clientIp(req: Request, server: Server<unknown>, trustLocalProxy: boolean): string {
   const socket = server.requestIP(req);
   const remote = socket ? unwrapMappedIPv4(socket.address) : 'unknown';
   const header = req.headers.get('CF-Connecting-IP');
@@ -67,18 +68,18 @@ export function clientIp(req, server, trustLocalProxy) {
 }
 
 // IPv6 の省略（::）を戻して、8 つの区切りの配列にする
-function expandIPv6(ip) {
+function expandIPv6(ip: string): string[] {
   const [head, tail] = ip.includes('::') ? ip.split('::') : [ip, null];
   const headParts = head ? head.split(':') : [];
   const tailParts = tail ? tail.split(':') : [];
-  const zeros = tail === null ? [] : new Array(8 - headParts.length - tailParts.length).fill('0');
+  const zeros: string[] = tail === null ? [] : new Array(8 - headParts.length - tailParts.length).fill('0');
   return [...headParts, ...zeros, ...tailParts];
 }
 
 // 回数を数えるときの「人」の単位を返す
 // IPv6 は 1 つの家（回線）に /64（前半の 4 区切り）がまるごと配られ、後半は自由に変えられる。
 // 1 つずつ数えると、アドレスを変えながら制限をすり抜けられるので、前半 4 区切りでまとめて数える
-export function ipKey(ip) {
+export function ipKey(ip: string): string {
   if (!isIPv6(ip)) {
     return ip;
   }
