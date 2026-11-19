@@ -123,3 +123,31 @@
   - 30 秒ごとに全部の接続へ `: ping`（`:` で始まる行はコメントで、ブラウザは知らせとして扱わない）を送る。公開するときに通す Cloudflare などの中継は、しばらく何も流れない接続を切ってしまうため。`bun --hot` で読み込み直すたびにタイマーが増えないよう、`globalThis` に置いて前のものを止めてから作る。
   - もう切れている接続に送ると例外になるので、`sendEvent` の中で `try...catch` し、その接続を取り除く（`removeListener`）。
 - `bun test` に、SSE につなぐと `retry: 3000` が届き、ポストといいねのたびに `data: changed` が届くことを確かめるテストを足した（12 件すべて通る）。
+
+## 公開に向けた守り（feat/hardening。`server.js`・`client-ip.js`・`rate-limit.js`）
+
+公開すると、誰でも（プログラムでも）連打できる。AGENTS.md の「DoS 対策は3層」のうち、**3 層目のアプリの制限** をここで受け持つ。1 層目（Cloudflare の保護）と 2 層目（オリジンには Cloudflare 経由でしか来られないようにする）は、公開の作業で別に行う。直す前に調べた弱点は `docs/journal/2026-11-19-hardening.md` にある。公式の答えは見ていない。
+
+上限の数は `server.js` の先頭の `LIMITS` にまとめた（環境変数 `MINIX_...` で変えられる。テストで小さな上限を試すため）。
+
+| 守り | どこ | 何をするか |
+|---|---|---|
+| 部屋の数の上限 | `openRoom`・`touchRoom` | 部屋は 500 まで。超えたら **いちばん長く使われていない部屋** を消す。`Map` は入れた順を覚えるので、使うたびに入れ直すと、先頭が「いちばん使われていない部屋」になる。1 人が 1 分に新しく作れる部屋も 10 まで（作り続けて、ほかの人の部屋を押し出すのを防ぐ）。いいねでは部屋を作らない |
+| 回数の制限 | `rate-limit.js`・`checkLimit` | 1 人（IP）ごとに 1 分あたり: ポスト 10・いいね 60・一覧 300・SSE のつなぎ直し 30。超えたら **429** と `Retry-After`（何秒待てばよいか）。断られたポストも 1 回と数える |
+| いいねの連打 | `likePost` の `sameLike` | 同じ人が同じポストにいいねできるのは 10 秒に 1 回 |
+| 相手の IP | `client-ip.js` の `clientIp` | ふつうは接続してきた相手の IP。`CF-Connecting-IP` ヘッダは、**Cloudflare の IP の範囲から来たときだけ** 信じる（誰でも書けるヘッダなので、ほかから来たものを信じると、IP を名乗り放題になり制限をすり抜けられる）。同じサーバーの中継（Cloudflare Tunnel など）を使うときだけ `MINIX_TRUST_LOCAL_PROXY=1` |
+| IPv6 | `client-ip.js` の `ipKey` | IPv6 は 1 つの回線に /64（前半 4 区切り）がまとめて配られ、後半は自由に変えられる。前半 4 区切りで 1 人と数える |
+| 覚える人の数 | `rate-limit.js` | 回数の記録も 1 つの制限につき 10,000 人まで。超えたら古い記録から消す（記録そのものでメモリを食いつぶされないため） |
+| データの大きさ | `readJsonBody`・`maxRequestBodySize` | ポストの JSON は 4096 バイトまで（**413**）。`Content-Length` を見て読む前に断り、読んだあとも測る。どの URL でも 64KB を超える本文は Bun が読む前に断る |
+| JSON の形 | `readJsonBody`・`checkPostBody` | `Content-Type: application/json` でなければ **415**。中身はふつうのオブジェクトで、キーは `name` と `text` の 2 つだけ（`likes` などを混ぜたら 400） |
+| SSE の接続数 | `getEvents` | 全体で 500 本（超えたら **503**）、1 人 20 本（超えたら 429）。閉じたら数を戻す（`removeListener` は 2 回呼ばれても数がずれない） |
+| 無通信・読まない接続 | `sendHeartbeats`・`sendEvent` | 1 本は最長 10 分で切る（ブラウザは 3 秒後に自動でつなぎ直すので、ふつうの人は困らない。黙って消えた相手の接続が残り続けない）。読まずに送る文字が 32 個溜まった接続も切る。ふつうの接続は 10 秒何も来なければ切る（`idleTimeout`。少しずつ送ってつなぎっぱなしにする攻撃を防ぐ） |
+| エラーの中身 | `development: false`・`serverError` | 思いがけない例外では「サーバーで問題が起きました」だけを返し、中身はサーバーの記録にだけ出す。試すと、前の設定（`development: true`・`error` なし）では **スタックトレースとファイルの場所入りの 50KB の画面** が返っていた。404 も、送られた URL をそのまま返さない |
+| セキュリティ用のヘッダ | `SECURITY_HEADERS`・`withHeaders` | `X-Content-Type-Options: nosniff`（種類を推測させない）・`X-Frame-Options: DENY` と CSP の `frame-ancestors 'none'`（ほかのサイトの枠に入れさせない）・`Content-Security-Policy`（画面が読み込めるのはこのサーバーのファイルだけ。もし XSS があっても、よそのスクリプトは動かない）・`Referrer-Policy`・`Permissions-Policy` |
+| 画面のファイル | `STATIC_FILES`・`serveStatic` | Bun の HTML の読み込み（`import index from './index.html'`）ではヘッダを足せないので、`index.html`・`script.js`・`styles.css`・`icon.svg` を表に書いて自分で配るようにした。毎回ファイルを読むので、`script.js` を書き換えたら再読み込みだけで届く |
+
+**公開するときの設定**（環境変数）: `HOST=127.0.0.1`（中継からだけ受ける）・`CORS_ORIGIN=https://公開する URL`・`CSP_CONNECT_SRC=`（同じ URL なら `'self'` だけで足りる）・Cloudflare Tunnel を使うなら `MINIX_TRUST_LOCAL_PROXY=1`。
+
+**防げないもの**（正直に書く）: たくさんの IP からの攻撃（DDoS）はアプリでは止められない（1・2 層目の Cloudflare の仕事）。IP ごとの制限なので、同じ IP の教室や会社では、みんなで 1 人分の上限を分け合う（上限は多めにした）。ポストはメモリにしか無いので、サーバーを止めると消える。部屋が 500 を超えると、使われていない部屋は消える。
+
+**確かめ方**: `bun test`（`hardening.test.js` が上限を小さくしたサーバーで 429・413・415・503 などを確かめる）。`bun scripts/loadtest.js` で手元で連打して、メモリが増え続けないことを見る（前のサーバーとの比べは journal）。
