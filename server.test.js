@@ -35,7 +35,14 @@ function sendPost(name, text, room = ROOM) {
 beforeAll(async () => {
   serverProcess = Bun.spawn(['bun', 'server.js'], {
     cwd: import.meta.dir,
-    env: { ...process.env, PORT: String(PORT) },
+    // このテストは同じ PC から何十回も送るので、回数の制限は大きくしておく（制限は hardening.test.js で確かめる）
+    env: {
+      ...process.env,
+      PORT: String(PORT),
+      MINIX_POSTS_PER_MINUTE: '1000',
+      MINIX_LIKES_PER_MINUTE: '1000',
+      MINIX_READS_PER_MINUTE: '1000',
+    },
     stdout: 'ignore',
     stderr: 'inherit',
   });
