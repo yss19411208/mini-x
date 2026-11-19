@@ -12,6 +12,8 @@ const SMALL_LIMITS = {
   MINIX_MAX_SSE_PER_IP: '2',
   MINIX_MAX_SSE_TOTAL: '4',
   MINIX_SSE_MAX_LIFETIME_MS: '1500',
+  MINIX_EGGS_PER_MINUTE: '2',
+  MINIX_MAX_EGGS_PER_ROOM: '3',
 };
 
 // trusted: 同じ PC の中継から来たときに CF-Connecting-IP を信じるサーバー（テストでは「人」をヘッダで分けられる）
@@ -133,9 +135,16 @@ describe('送るデータの大きさと形', () => {
     expect(res.status).toBe(413);
   });
 
-  test('とても大きな本文（200KB）も 413 で、サーバーは落ちない', async () => {
-    const res = await sendPost('body', newIp(), 'a'.repeat(200 * 1024));
-    expect(res.status).toBe(413);
+  test('とても大きな本文（200KB）も断られ、サーバーは落ちない', async () => {
+    // Bun は 64KB を超える本文を、読み終わる前に 413 で断って接続を切る。送っている途中で切られると、
+    // 送った側には 413 が届かず「接続が切れた（ECONNRESET）」になることがある。どちらも「断られた」とみなす
+    let result: number | string;
+    try {
+      result = (await sendPost('body', newIp(), 'a'.repeat(200 * 1024))).status;
+    } catch (error) {
+      result = (error as { code?: string }).code ?? 'error';
+    }
+    expect([413, 'ECONNRESET']).toContain(result);
     expect((await request('/posts?room=body', newIp())).status).toBe(200);
   });
 
@@ -261,3 +270,27 @@ describe('エラーの返事とヘッダ', () => {
     }
   });
 });
+
+describe('夢のたまごの上限（オリジナル機能 2）', () => {
+  const egg = { name: 'たろう', text: 'ひみつ', opensIn: 1 };
+
+  test('1 人が 1 分に作れるたまごは 2 個まで', async () => {
+    const ip = newIp();
+    const statuses: number[] = [];
+    for (let i = 0; i < 3; i++) {
+      statuses.push((await sendPost('egg-limit', ip, egg)).status);
+    }
+    expect(statuses).toEqual([201, 201, 429]);
+  });
+
+  test('1 部屋の、まだかえっていないたまごは 3 個まで', async () => {
+    const statuses: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      statuses.push((await sendPost('egg-room', newIp(), egg)).status);
+    }
+    expect(statuses).toEqual([201, 201, 201, 429]);
+    // ふつうのポストはできる
+    expect((await sendPost('egg-room', newIp())).status).toBe(201);
+  });
+});
+

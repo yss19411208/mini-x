@@ -10,6 +10,8 @@ export type Post = {
   text: string;
   likes: number;
   createdAt: string; // ISO の形の時刻
+  opensAt?: string; // 夢のたまご（本体のオリジナル機能 2）がかえる時刻
+  sealed?: boolean; // まだかえっていないたまご（text は空で届く）
 };
 
 // sendPost の答え。うまくいったか、断られたら理由

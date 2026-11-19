@@ -42,3 +42,11 @@ export function formatTime(createdAt: string): string {
   const mm = String(date.getMinutes()).padStart(2, '0');
   return (date.getMonth() + 1) + '/' + date.getDate() + ' ' + hh + ':' + mm;
 }
+
+// 夢のたまごがかえる時刻を「17:32」、今日でなければ「11/20 17:32」の形にする（本体の script.ts と同じ）
+export function formatOpensAt(opensAt: string): string {
+  const date = new Date(opensAt);
+  const hhmm = String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0');
+  const isToday = date.toDateString() === new Date().toDateString();
+  return isToday ? hhmm : (date.getMonth() + 1) + '/' + date.getDate() + ' ' + hhmm;
+}

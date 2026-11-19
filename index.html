@@ -50,6 +50,14 @@
             <p id="room-hint" class="room-hint" hidden></p>
             <!-- B1: 残りの文字数（script.ts が数を入れる）と、ポストするボタンを横に並べる -->
             <div class="compose-footer">
+              <!-- オリジナル機能 2: 夢のたまご。時間を選ぶと、その時間になるまで中身が見えないポストになる -->
+              <select id="egg-select" title="夢のたまご：選んだ時間になるまで、だれにも中身が見えません">
+                <option value="0">いますぐ</option>
+                <option value="1">🥚 1分後</option>
+                <option value="10">🥚 10分後</option>
+                <option value="60">🥚 1時間後</option>
+                <option value="1440">🥚 明日</option>
+              </select>
               <span id="char-count"></span>
               <button id="post-btn" title="Ctrl + Enter（Mac は ⌘ + Enter）でもポストできます">ポストする</button>
             </div>
@@ -68,6 +76,8 @@
               <span class="name"></span>
               <!-- B2: ポストした時刻。script.ts が「3分前」などの文字を入れる -->
               <time class="time"></time>
+              <!-- オリジナル機能 2: 夢のたまごの印（🥚 / 🐣）。ふつうのポストでは隠れたまま -->
+              <span class="egg-badge" hidden></span>
               <p class="text"></p>
               <!-- いいねボタン（ミッション 4）。ハートの横にいいねの数が入る -->
               <button class="like-btn"><span class="like-count"></span></button>

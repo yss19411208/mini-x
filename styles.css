@@ -636,3 +636,42 @@ main {
   color: var(--accent);
   font-size: 14px;
 }
+
+/* 2. 夢のたまご: 時間を選ぶ欄。左下の飾りのアイコン（画像・絵文字・場所。幅 92px）の右に置く */
+#egg-select {
+  margin-left: 104px;
+  margin-right: auto;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-sub);
+  font: inherit;
+  font-size: 13px;
+}
+
+/* 🥚・🐣 の印。名前と時刻の横に小さく出す */
+.egg-badge {
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 9999px;
+  background: color-mix(in srgb, #f2b705 20%, var(--bg));
+  color: #8a6100;
+  font-size: 12px;
+}
+
+/* まだかえっていないたまごは、点線のふちで、本文を薄くする */
+.post.sealed {
+  border-style: dashed;
+  border-color: #f2b705;
+}
+
+.post.sealed .text {
+  color: var(--text-sub);
+}
+
+/* いいねできないハート（かえる前のたまご）は薄くする */
+.like-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
