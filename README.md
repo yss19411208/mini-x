@@ -41,4 +41,11 @@ React 版を作り直すとき: `cd react && bun install && bun run build`（`re
 
 ## スクショ
 
-`docs/images/` に置きます（例: `home.png`・`shiritori.png`・`egg.png`・`react.png`）。
+ホーム（上が、まだかえっていない夢のたまご 🥚。その下に、かえったたまご 🐣）
+![ホーム](docs/images/home.png)
+
+しりとり部屋
+![しりとり部屋](docs/images/shiritori.png)
+
+React 版（/react/）
+![React 版](docs/images/react.png)
