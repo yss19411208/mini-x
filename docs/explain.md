@@ -3,6 +3,7 @@
 機能ごとに「何をしているか・どのファイルのどこか・なぜこう書いたか」を短く書く。
 
 > B6（2026-11-19）で `server.js`・`script.js`・`client-ip.js`・`rate-limit.js` を `.ts` にした。下の古い節の `.js` は、今は同じ名前の `.ts` のこと。
+> 提出前の点検（2026-11-19）で、`avatarColor`・`initialOf`・`formatTime`・`countChars` と本文の上限 `MAX_TEXT_LENGTH` を `format.ts` に移した（本体の画面・React 版・サーバーで同じものを使うため）。下の節で「script.js の avatarColor」などとあるものは、今は `format.ts` にある。
 
 ## 土台：公式の completed/ をそのまま使う
 
@@ -186,7 +187,7 @@
   | `PostCard.tsx` | 投稿カード 1 枚。アイコン（B7）・時刻（B2）・ハート（B8） |
   | `hooks.ts` | `useTimeline`（一覧・SSE・10 秒ごとの予備の取り直し。B4・B9）と `useLikedIds`（いいねの記録。B8） |
   | `api.ts` | サーバーとのやりとり（`fetchPosts`・`sendPost`・`sendLike`）と `type Post` |
-  | `format.ts` | 色・頭文字・文字数・時刻の文字（本体の `script.ts` と同じ中身） |
+  | `../format.ts` | 色・頭文字・文字数・時刻の文字（本体と共通のファイルを import する。点検のときに、本体と 2 つあったものを 1 つにした） |
 - **本体との違い（考え方）**: 本体は「部品を探して `textContent` を書き換える」。React は「今の値（state）から画面の形を書く」と、値が変わったときに React が描き直す。たとえば残りの文字数は、`text` が変わるたびに描き直されるので、数え直す関数を自分で呼ばなくてよい。
 - **XSS**: `{post.text}` のように `{}` で入れた文字は、React が必ずただの文字として出す（本体の `textContent` と同じ）。`dangerouslySetInnerHTML` は使っていない。`<img src=x onerror=...>` をポストしても、文字のまま出ることを確かめた。
 - **`useEffect` の後片づけ**: SSE の接続とタイマーは `useEffect` の中で作り、`return` の関数で閉じる（画面が消えたときに接続が残らないように）。10 秒ごとの取り直しは「`isLive` が false のあいだだけ」の effect にしたので、つながると React がタイマーを止める（本体では `autoReload` の中で `isLive` を見ていた）。
