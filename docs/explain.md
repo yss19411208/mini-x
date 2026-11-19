@@ -2,6 +2,8 @@
 
 機能ごとに「何をしているか・どのファイルのどこか・なぜこう書いたか」を短く書く。
 
+> B6（2026-11-19）で `server.js`・`script.js`・`client-ip.js`・`rate-limit.js` を `.ts` にした。下の古い節の `.js` は、今は同じ名前の `.ts` のこと。
+
 ## 土台：公式の completed/ をそのまま使う
 
 - 出典: 公式資料 `jigintern/study_session_materials` の `2026/mini-x/completed/`（コピー時のコミット `dcdcd05`）。ここから自分たちで拡張する。
@@ -144,10 +146,28 @@
 | 無通信・読まない接続 | `sendHeartbeats`・`sendEvent` | 1 本は最長 10 分で切る（ブラウザは 3 秒後に自動でつなぎ直すので、ふつうの人は困らない。黙って消えた相手の接続が残り続けない）。読まずに送る文字が 32 個溜まった接続も切る。ふつうの接続は 10 秒何も来なければ切る（`idleTimeout`。少しずつ送ってつなぎっぱなしにする攻撃を防ぐ） |
 | エラーの中身 | `development: false`・`serverError` | 思いがけない例外では「サーバーで問題が起きました」だけを返し、中身はサーバーの記録にだけ出す。試すと、前の設定（`development: true`・`error` なし）では **スタックトレースとファイルの場所入りの 50KB の画面** が返っていた。404 も、送られた URL をそのまま返さない |
 | セキュリティ用のヘッダ | `SECURITY_HEADERS`・`withHeaders` | `X-Content-Type-Options: nosniff`（種類を推測させない）・`X-Frame-Options: DENY` と CSP の `frame-ancestors 'none'`（ほかのサイトの枠に入れさせない）・`Content-Security-Policy`（画面が読み込めるのはこのサーバーのファイルだけ。もし XSS があっても、よそのスクリプトは動かない）・`Referrer-Policy`・`Permissions-Policy` |
-| 画面のファイル | `STATIC_FILES`・`serveStatic` | Bun の HTML の読み込み（`import index from './index.html'`）ではヘッダを足せないので、`index.html`・`script.js`・`styles.css`・`icon.svg` を表に書いて自分で配るようにした。毎回ファイルを読むので、`script.js` を書き換えたら再読み込みだけで届く |
+| 画面のファイル | `STATIC_FILES`・`serveStatic` | Bun の HTML の読み込み（`import index from './index.html'`）ではヘッダを足せないので、`index.html`・`script.js`（B6 からは `script.ts` を JavaScript に直して）・`styles.css`・`icon.svg` を表に書いて自分で配るようにした。毎回ファイルを見るので、書き換えたら再読み込みだけで届く |
 
 **公開するときの設定**（環境変数）: `HOST=127.0.0.1`（中継からだけ受ける）・`CORS_ORIGIN=https://公開する URL`・`CSP_CONNECT_SRC=`（同じ URL なら `'self'` だけで足りる）・Cloudflare Tunnel を使うなら `MINIX_TRUST_LOCAL_PROXY=1`。
 
 **防げないもの**（正直に書く）: たくさんの IP からの攻撃（DDoS）はアプリでは止められない（1・2 層目の Cloudflare の仕事）。IP ごとの制限なので、同じ IP の教室や会社では、みんなで 1 人分の上限を分け合う（上限は多めにした）。ポストはメモリにしか無いので、サーバーを止めると消える。部屋が 500 を超えると、使われていない部屋は消える。
 
 **確かめ方**: `bun test`（`hardening.test.js` が上限を小さくしたサーバーで 429・413・415・503 などを確かめる）。`bun scripts/loadtest.js` で手元で連打して、メモリが増え続けないことを見る（前のサーバーとの比べは journal）。
+
+## 応用ミッション B6：本体を TypeScript にする（`server.ts`・`script.ts`・`client-ip.ts`・`rate-limit.ts`・テスト）
+
+参考にしたのは DOCS.md の B6 のヒント（`as HTMLInputElement`・`type Post`・`String(post.likes)`）。答えの `script.ts` は写していない（答えは昔の短い script.js 向けで、今のコードとは別物）。
+
+- **動きは変えていない**。足したのは型だけ。`bun test`（30 件）と画面の手順（journal）で前と同じに動くことを確かめた。
+- **型の検査**: `bunx tsc`（`tsconfig.json`）。`strict`（null かもしれない値や、型の書いていない引数をエラーにする）と、使っていない変数をエラーにする設定にした。Bun は型を見ずに動かすので、型の間違いは `tsc` でしか見つからない。
+- **ポストの形** `type Post = { id; name; text; likes; createdAt }` を、`server.ts` と `script.ts` の両方に書いた（画面とサーバーで同じ形）。
+- **画面の部品を探す** `byId<T>(id)`・`part<T>(card, selector)`（`script.ts`）: `getElementById` は「見つからないかもしれない（null）」型を返すので、毎回 `as HTMLInputElement` と書く代わりに、1 か所で「無ければエラーにする」関数にまとめた。`<T>` は「何の部品として受け取るか」を呼ぶ側が決める印（ジェネリクス）。
+- **分からない形のデータ**: `JSON.parse` の結果は `unknown`（何が入っているか分からない）として受け、`checkPostBody` で 1 つずつ確かめてから `PostInput` として使う。`any` は使っていない。
+- **`declare global`**（`server.ts`）: `bun --hot` で読み込み直してもポストが消えないよう `globalThis.rooms` に置いている（B9 まで同じ）。TypeScript に「globalThis にこの名前・この型のものがある」と教える書き方。
+- **部屋の名前の確かめ方を 1 つにまとめた** `readRoom(req)`: 4 つの API で同じ 4 行を書いていたので、TS にするときに関数にした。よければ部屋の名前（文字）、だめなら 400 の返事（`Response`）を返し、呼ぶ側は `instanceof Response` で見分ける。
+- **ブラウザは .ts を読めない**: `server.ts` の `serveStatic` が、`/script.ts` を頼まれたら `Bun.Transpiler` で型を取り除いて JavaScript にしてから配る（`toJavaScript`）。結果はファイルの更新時刻といっしょに覚えておき、書き換わったときだけ直し直す（毎回直すと CPU を使うため）。前もって `.js` を作る手順（ビルド）は要らない。
+  - `bun run index.html` で開いたときは、Bun の開発用サーバーが自分で .ts を読むので、これも動く。
+- **`script.ts` の最後の `export {}`**: これが無いと、TypeScript は中の名前（`API` など）を全ファイル共通の名前として扱い、`server.ts` と同じ名前がぶつかったことにする。「このファイルはモジュール」という印。
+- **API の場所**: 前は「https なら画面と同じ場所、http なら localhost:8000」だった。今は「ふだんは画面と同じ場所、`bun run index.html`（3000 番）のときだけ localhost:8000」。`bun server.ts` が画面も API も配るので、同じ場所にするほうが単純で、8000 番以外で動かしても動く（確かめるときに 8000 番が別のサーバーに使われていて困ったのがきっかけ）。
+- **`server.js` を 1 行だけ残した**: 本番の systemd は `bun server.js` で起動している。設定を変えずに更新できるよう、`server.js` は `import './server.ts'` だけにした。
+- 足した道具（`package.json` の `devDependencies`）: `typescript`（型の検査）と `@types/bun`（Bun の型）。どちらも検査のためだけで、サーバーを動かすときには要らない（本番では `bun install` しなくてよい）。
