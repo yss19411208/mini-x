@@ -575,6 +575,36 @@ async function serveStatic(req: Request): Promise<Response> {
   return withHeaders(res);
 }
 
+// React 版（B10・B11）のファイルを /react/ で配る。中身は react/dist（react フォルダで bun run build を実行して作る）
+// ファイルの名前は英数字とハイフンと拡張子だけにする（../ などで、ほかの場所のファイルを読まれないように）
+const REACT_DIST = import.meta.dir + '/react/dist/';
+const REACT_FILE_PATTERN = /^[A-Za-z0-9-]+\.(html|js|css|svg)$/;
+const REACT_TYPES: Record<string, string> = {
+  html: 'text/html; charset=utf-8',
+  js: 'text/javascript; charset=utf-8',
+  css: 'text/css; charset=utf-8',
+  svg: 'image/svg+xml',
+};
+
+async function serveReact(req: Request): Promise<Response> {
+  const name = new URL(req.url).pathname.slice('/react/'.length) || 'index.html';
+  const match = REACT_FILE_PATTERN.exec(name);
+  const file = Bun.file(REACT_DIST + name);
+  if (!match || !(await file.exists())) {
+    return errorResponse(404, 'その URL はありません');
+  }
+  const res = new Response(file);
+  res.headers.set('Content-Type', REACT_TYPES[match[1]!]!);
+  // index.html 以外は、中身が変わると名前（index-xxxx.js の xxxx）も変わるので、ブラウザに長く覚えさせてよい
+  res.headers.set('Cache-Control', name === 'index.html' ? 'no-cache' : 'public, max-age=31536000, immutable');
+  return withHeaders(res);
+}
+
+// /react を開かれたら /react/ に移ってもらう（index.html の中の ./ で始まるファイルの場所が合うように）
+function redirectToReact(): Response {
+  return withHeaders(new Response(null, { status: 301, headers: { Location: '/react/' } }));
+}
+
 // ブラウザが POST の前に「送ってもいいか」を OPTIONS で聞いてくるので、いいよと返す
 function preflight(): Response {
   return withHeaders(new Response(null, { status: 204 }));
@@ -635,6 +665,8 @@ const server = Bun.serve({
   // URL と頼み方（GET や POST）ごとに、どの関数で答えるかの表
   routes: {
     ...staticRoutes,
+    '/react': { GET: redirectToReact },
+    '/react/*': { GET: serveReact },
     '/posts': {
       GET: getPosts,
       POST: createPost,
