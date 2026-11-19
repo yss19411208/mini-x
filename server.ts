@@ -9,6 +9,7 @@
 import type { BunFile, BunRequest, Server } from 'bun';
 import { clientIp, ipKey } from './client-ip.ts';
 import { createRateLimiter, type RateLimiter } from './rate-limit.ts';
+import { checkShiritori, isShiritoriRoom } from './shiritori.ts';
 
 // ポスト 1 件の形。画面（script.ts）の Post と同じ形にする
 type Post = {
@@ -72,6 +73,12 @@ const SAMPLE_POSTS = [
   { name: 'はなこ', text: 'こんにちは〜' },
   { name: 'じろう', text: 'ミニX できた 🎉' },
 ];
+// しりとり部屋（オリジナル機能 1）のはじめのポスト。しりとり → りんご → ごりら とつながっていて、次は「ら」から
+const SHIRITORI_SAMPLE_POSTS = [
+  { name: 'たろう', text: 'しりとり' },
+  { name: 'はなこ', text: 'りんご' },
+  { name: 'じろう', text: 'ごりら' },
+];
 
 // ほかの URL で開いた画面（bun run index.html）からの頼みごとにも答えてよい、とブラウザに伝える印（CORS）
 const CORS_HEADERS = {
@@ -113,6 +120,7 @@ const STATIC_FILES: Record<string, StaticFile> = {
   '/': { file: 'index.html', type: 'text/html; charset=utf-8' },
   '/index.html': { file: 'index.html', type: 'text/html; charset=utf-8' },
   '/script.ts': { file: 'script.ts', type: 'text/javascript; charset=utf-8', transpile: true },
+  '/shiritori.ts': { file: 'shiritori.ts', type: 'text/javascript; charset=utf-8', transpile: true },
   '/styles.css': { file: 'styles.css', type: 'text/css; charset=utf-8' },
   '/icon.svg': { file: 'icon.svg', type: 'image/svg+xml' },
 };
@@ -156,14 +164,15 @@ function newPost(name: string, text: string, createdAt: Date): Post {
   };
 }
 
-// SAMPLE_POSTS から、1 分ずつ前に書いたことにしたポストを、新しい順に作る
-function createSamplePosts(): Post[] {
+// はじめのポストから、1 分ずつ前に書いたことにしたポストを、新しい順に作る。しりとり部屋は、しりとりのポストにする
+function createSamplePosts(room: string): Post[] {
+  const samples = isShiritoriRoom(room) ? SHIRITORI_SAMPLE_POSTS : SAMPLE_POSTS;
   const posts: Post[] = [];
   const now = Date.now();
-  for (let i = 0; i < SAMPLE_POSTS.length; i++) {
-    const minutesAgo = SAMPLE_POSTS.length - i;
+  for (let i = 0; i < samples.length; i++) {
+    const minutesAgo = samples.length - i;
     const createdAt = new Date(now - minutesAgo * 60 * 1000);
-    posts.unshift(newPost(SAMPLE_POSTS[i].name, SAMPLE_POSTS[i].text, createdAt));
+    posts.unshift(newPost(samples[i]!.name, samples[i]!.text, createdAt));
   }
   return posts;
 }
@@ -192,7 +201,7 @@ function openRoom(room: string, key: string): Post[] | null {
   while (rooms.size >= LIMITS.maxRooms) {
     rooms.delete(rooms.keys().next().value!);
   }
-  const posts = createSamplePosts();
+  const posts = createSamplePosts(room);
   rooms.set(room, posts);
   return posts;
 }
@@ -456,7 +465,16 @@ async function createPost(req: Request, server: MinixServer): Promise<Response> 
   if (!posts) {
     return tooManyRequests(60, '新しい部屋を作りすぎています。少し待ってください');
   }
-  const post = newPost(input.name.trim(), input.text.trim(), new Date());
+  const text = input.text.trim();
+  // しりとり部屋なら、いちばん新しいポストの最後の字から始まっているかを確かめる（オリジナル機能 1）
+  // ここから unshift までは await を挟まないので、2 人が同時に送っても、2 人目は 1 人目のことばにつながっているかで確かめられる
+  if (isShiritoriRoom(room)) {
+    const shiritoriError = checkShiritori(posts[0]?.text ?? null, text);
+    if (shiritoriError) {
+      return errorResponse(400, shiritoriError);
+    }
+  }
+  const post = newPost(input.name.trim(), text, new Date());
   posts.unshift(post);
   if (posts.length > MAX_POSTS_PER_ROOM) {
     posts.pop();

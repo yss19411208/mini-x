@@ -198,3 +198,35 @@ describe('React 版（B10・B11）', () => {
     expect((await fetch(BASE + '/react/package.json')).status).toBe(404);
   });
 });
+
+describe('しりとり部屋（オリジナル機能 1）', () => {
+  const room = 'shiritori-' + Date.now();
+
+  test('はじめのポストは しりとり → りんご → ごりら で、次は「ら」から', async () => {
+    const posts = await (await fetch(BASE + '/posts?room=' + room)).json();
+    expect(posts.map((p: { text: string }) => p.text)).toEqual(['ごりら', 'りんご', 'しりとり']);
+    expect((await sendPost('たろう', 'ラッパ', room)).status).toBe(201);
+  });
+
+  test('つながらないことば・かな以外は 400 で、理由を返す', async () => {
+    const wrong = await sendPost('はなこ', 'すいか', room);
+    expect(wrong.status).toBe(400);
+    expect((await wrong.json()).message).toContain('「ぱ」');
+    expect((await sendPost('はなこ', 'パン粉', room)).status).toBe(400);
+  });
+
+  test('「ん」で終わったら、次は好きな字から始められる', async () => {
+    expect((await sendPost('はなこ', 'ぱん', room)).status).toBe(201);
+    expect((await sendPost('じろう', 'すいか', room)).status).toBe(201);
+  });
+
+  test('ふつうの部屋には、しりとりの決まりはない', async () => {
+    expect((await sendPost('たろう', '漢字もOK')).status).toBe(201);
+  });
+
+  test('shiritori.ts も JavaScript にして配られる（画面が import する）', async () => {
+    const res = await fetch(BASE + '/shiritori.ts');
+    expect(res.headers.get('Content-Type')).toContain('text/javascript');
+    expect(await res.text()).toContain('function checkShiritori');
+  });
+});

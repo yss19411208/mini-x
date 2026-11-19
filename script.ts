@@ -1,10 +1,16 @@
 // ミニX の動きを書くファイル。サーバーとポストをやりとりして、タイムラインに並べる
 // B6 で TypeScript にした。ブラウザは .ts を読めないので、server.ts が配る前に型を取り除いて JavaScript にする
+import { isShiritoriRoom, MAX_WORD_LENGTH, nextKana } from './shiritori.ts';
+
 // API はサーバーの場所（URL）、ROOM は部屋の名前。同じ部屋の人どうしで、ポストが見える
 // ふだんは、画面を配ったのと同じ場所（bun server.ts が画面も API も配る。手元の 8000 番も、公開先 https://minix.dreamyard.cc も）
 // bun run index.html（Bun の開発用サーバー。3000 番）で画面だけを開いたときは、API は localhost:8000 のサーバー
 const API = location.port === '3000' ? 'http://localhost:8000' : location.origin;
-const ROOM = 'sample';
+// 部屋の名前は URL の ?room= で選べる（例: /?room=shiritori）。無い・形がおかしいときは sample
+// 形の決まりは server.ts の ROOM_PATTERN と同じ（サーバーも必ず確かめる）
+const ROOM = roomFromUrl();
+// しりとり部屋かどうか（オリジナル機能 1）
+const IS_SHIRITORI = isShiritoriRoom(ROOM);
 // 本文の長さの上限。server.js の MAX_TEXT_LENGTH と同じ数にする（B1）
 const MAX_TEXT_LENGTH = 140;
 // タイムラインを自動で取り直す間隔（ミリ秒）。10 秒（B4）
@@ -43,6 +49,12 @@ function part<T extends Element>(card: DocumentFragment, selector: string): T {
     throw new Error(selector + ' の部品が投稿カードの見本にありません');
   }
   return element;
+}
+
+// URL の ?room= から部屋の名前を取り出す。const ROOM より下に書いてあるが、function は先に読み込まれるので使える
+function roomFromUrl(): string {
+  const room = new URLSearchParams(location.search).get('room');
+  return room && /^[A-Za-z0-9-]{1,32}$/.test(room) ? room : 'sample';
 }
 
 // 名前から、アイコンの背景の色を 1 つ選ぶ（B7）
@@ -250,6 +262,38 @@ async function loadPosts(): Promise<void> {
     timeline.appendChild(card);
   }
   forgetDeletedLikes(posts);
+  showShiritoriHint(posts);
+}
+
+// しりとり部屋なら、次は何の字から始めればよいかを投稿欄に出す（オリジナル機能 1）
+// 判定は shiritori.ts の nextKana（サーバーと同じ関数）を使う
+function showShiritoriHint(posts: Post[]): void {
+  if (!IS_SHIRITORI) {
+    return;
+  }
+  const latest = posts[0];
+  const next = latest ? nextKana(latest.text) : null;
+  let message = '好きなことばから始めてください';
+  if (next) {
+    message = '次は「' + next + '」から始まることば（ひらがな・カタカナ、' + MAX_WORD_LENGTH + '字まで）';
+  } else if (latest) {
+    message = '「' + latest.text + '」は「ん」で終わった！ 次は好きなことばからどうぞ';
+  }
+  byId('room-hint').textContent = message;
+}
+
+// 部屋に合わせて、見出し・左のメニュー・投稿欄を変える（オリジナル機能 1）
+function showRoom(): void {
+  if (!IS_SHIRITORI) {
+    return;
+  }
+  document.title = 'しりとり部屋 - ユメバ';
+  byId('room-title').textContent = 'しりとり部屋';
+  byId<HTMLTextAreaElement>('text-input').placeholder = 'しりとりのことば（ひらがな・カタカナ）';
+  byId('room-hint').hidden = false;
+  // 左のメニューで、今いる部屋を太字にする（aria-current は「今のページ」と読み上げソフトに伝える印）
+  byId('nav-home').removeAttribute('aria-current');
+  byId('nav-shiritori').setAttribute('aria-current', 'page');
 }
 
 // いいねボタンを、いいね済み（ピンク）か、まだか、の見た目にする（B8）
@@ -361,7 +405,8 @@ byId('text-input').addEventListener('input', updateCharCount);
 // 本文の欄でキーが押されたら、Ctrl + Enter かどうかを確かめる（B3）
 byId('text-input').addEventListener('keydown', postByShortcut);
 
-// ページを開いたときに 1 回、残りの文字数とタイムラインを表示する
+// ページを開いたときに 1 回、部屋に合わせた見た目・残りの文字数・タイムラインを表示する
+showRoom();
 updateCharCount();
 showPosts();
 // サーバーの知らせ（SSE）につなぐ。つながるまでは「つなぎ直し中」と出す（B9）
@@ -369,7 +414,3 @@ showLiveStatus();
 connectEvents();
 // SSE が切れているあいだだけ、10 秒ごとにタイムラインを取り直す（B4。予備）
 setInterval(autoReload, AUTO_RELOAD_MS);
-
-// このファイルを「モジュール」として扱わせる印（B6）。これが無いと、TypeScript は中の名前（API・ROOM など）を
-// ほかのファイルと共通の名前として扱い、server.ts の同じ名前とぶつかったことにしてしまう
-export {};
