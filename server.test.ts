@@ -181,3 +181,20 @@ describe('画面のファイル（B6）', () => {
     expect(html).toContain('src="script.ts"');
   });
 });
+
+describe('React 版（B10・B11）', () => {
+  test('/react は /react/ に移り、/react/ で React 版の画面が配られる', async () => {
+    const moved = await fetch(BASE + '/react', { redirect: 'manual' });
+    expect(moved.status).toBe(301);
+    expect(moved.headers.get('Location')).toBe('/react/');
+    const res = await fetch(BASE + '/react/');
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('<main id="root">');
+  });
+
+  test('react/dist の外のファイルは読めない', async () => {
+    // %2F は / のこと。../server.ts を読もうとしても断られる
+    expect((await fetch(BASE + '/react/..%2Fserver.ts')).status).toBe(404);
+    expect((await fetch(BASE + '/react/package.json')).status).toBe(404);
+  });
+});

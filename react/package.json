@@ -1,0 +1,17 @@
+{
+  "name": "mini-x-react",
+  "private": true,
+  "scripts": {
+    "dev": "bun index.html --port 3000",
+    "build": "rm -rf dist && bun build index.html --outdir dist --production"
+  },
+  "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "typescript": "^7.0.2"
+  }
+}

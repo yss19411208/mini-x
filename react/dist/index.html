@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<!-- ミニX の React 版（B10・B11）の画面。左右の飾りは本体の index.html と同じで、真ん中だけ React が作る。見た目は本体の styles.css を共通で使う -->
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- A1: アプリの名前。公開先 dreamyard（夢の庭）にちなんで「ユメバ」 -->
+    <title>ユメバ（React 版）</title>
+    
+  <link rel="stylesheet" crossorigin href="./index-xy50k7vt.css"><script type="module" crossorigin src="./index-mgt0gez9.js"></script></head>
+  <body>
+    <!-- 画面全体を、左のメニュー・真ん中（main）・右のサイドバーの 3 つに分けて横に並べる -->
+    <div class="layout">
+      <!-- 左のメニュー。はじめから用意してある飾りで、押しても何も起きない -->
+      <nav class="sidebar-left">
+        <div class="wordmark">ユメバ</div>
+        <a class="nav-item nav-home">ホーム</a>
+        <a class="nav-item nav-search">話題を検索</a>
+        <a class="nav-item nav-notifications">通知</a>
+        <a class="nav-item nav-messages">メッセージ</a>
+        <a class="nav-item nav-profile">プロフィール</a>
+        <button class="nav-post-btn">ポストする</button>
+        <div class="nav-account">
+          <img class="avatar" src="./icon-bjq4hfje.svg" alt="">
+          <span>あなた</span>
+        </div>
+      </nav>
+
+      <!-- 真ん中。React（main.jsx）がこの中に画面を作る（B10） -->
+      <main id="root"></main>
+
+      <!-- 右のサイドバー。検索とトレンドの飾りで、中身は決め打ちの文字 -->
+      <aside class="sidebar-right">
+        <div class="search-box">検索</div>
+        <section class="trends">
+          <!-- A5: トレンド欄を自分たちの話題（高専・ものづくり）にした。件数は飾りの決め打ち -->
+          <h2>いまつくってる？</h2>
+          <div class="trend">
+            <span class="trend-meta">高専・トレンド</span>
+            <span class="trend-name">#プロコン</span>
+            <span class="trend-meta">1,024件のポスト</span>
+          </div>
+          <div class="trend">
+            <span class="trend-meta">学校・トレンド</span>
+            <span class="trend-name">#高専</span>
+            <span class="trend-meta">567件のポスト</span>
+          </div>
+          <div class="trend">
+            <span class="trend-meta">テクノロジー・トレンド</span>
+            <span class="trend-name">#Bun</span>
+            <span class="trend-meta">256件のポスト</span>
+          </div>
+          <div class="trend">
+            <span class="trend-meta">ものづくり・トレンド</span>
+            <span class="trend-name">#締切まであと11日</span>
+            <span class="trend-meta">30件のポスト</span>
+          </div>
+          <div class="trend-more">さらに表示</div>
+        </section>
+      </aside>
+    </div>
+
+    <!-- React の入り口。bun が TSX を JavaScript に直す -->
+    
+  </body>
+</html>
