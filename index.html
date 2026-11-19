@@ -14,7 +14,9 @@
       <!-- 左のメニュー。はじめから用意してある飾りで、押しても何も起きない -->
       <nav class="sidebar-left">
         <div class="wordmark">ユメバ</div>
-        <a class="nav-item nav-home">ホーム</a>
+        <!-- オリジナル機能 1: ホームとしりとり部屋は本当のリンク（?room= で部屋を選ぶ）。ほかは飾り -->
+        <a id="nav-home" class="nav-item nav-home" href="/" aria-current="page">ホーム</a>
+        <a id="nav-shiritori" class="nav-item nav-shiritori" href="/?room=shiritori">しりとり部屋</a>
         <a class="nav-item nav-search">話題を検索</a>
         <a class="nav-item nav-notifications">通知</a>
         <a class="nav-item nav-messages">メッセージ</a>
@@ -30,7 +32,7 @@
       <main>
         <!-- ① ヘッダー（ミッション 0）。更新ボタンはミッション 2 で足した -->
         <header class="header">
-          <h1>ホーム</h1>
+          <h1 id="room-title">ホーム</h1>
           <!-- B9: SSE でつながっているか（ライブ / つなぎ直し中）を出す。script.ts が文字を入れる -->
           <div class="header-tools">
             <span id="live-status" class="live-status"></span>
@@ -44,6 +46,8 @@
           <div class="compose-body">
             <input id="name-input" type="text" placeholder="ニックネーム">
             <textarea id="text-input" placeholder="今日なにつくった？"></textarea>
+            <!-- オリジナル機能 1: しりとり部屋のときだけ、次は何の字から始めるかを script.ts が出す -->
+            <p id="room-hint" class="room-hint" hidden></p>
             <!-- B1: 残りの文字数（script.ts が数を入れる）と、ポストするボタンを横に並べる -->
             <div class="compose-footer">
               <span id="char-count"></span>
