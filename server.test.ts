@@ -42,6 +42,9 @@ beforeAll(async () => {
       MINIX_POSTS_PER_MINUTE: '1000',
       MINIX_LIKES_PER_MINUTE: '1000',
       MINIX_READS_PER_MINUTE: '1000',
+      MINIX_EGGS_PER_MINUTE: '1000',
+      // 夢のたまごの「1 分」を 0.4 秒にして、かえるところを試す
+      MINIX_EGG_MINUTE_MS: '400',
     },
     stdout: 'ignore',
     stderr: 'inherit',
@@ -230,3 +233,58 @@ describe('しりとり部屋（オリジナル機能 1）', () => {
     expect(await res.text()).toContain('function checkShiritori');
   });
 });
+
+describe('夢のたまご（オリジナル機能 2）', () => {
+  const room = ROOM + '-egg';
+
+  // 夢のたまごをポストする
+  function sendEgg(text: string, opensIn: unknown, eggRoom = room): Promise<Response> {
+    return fetch(BASE + '/posts?room=' + eggRoom, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'たまご', text: text, opensIn: opensIn }),
+    });
+  }
+
+  test('かえるまでは本文が届かず、いいねもできない。時間になると本文が届き、先頭に上がる', async () => {
+    const events = await fetch(BASE + '/posts/events?room=' + room);
+    const reader = events.body!.getReader();
+    try {
+      await readUntil(reader, ': connected');
+      const res = await sendEgg('未来へのひみつ', 1);
+      expect(res.status).toBe(201);
+      const egg = await res.json();
+      expect(egg.sealed).toBe(true);
+      expect(egg.text).toBe('');
+      await readUntil(reader, 'data: changed');
+
+      // あとから別のポストをしても、一覧の中身にひみつの本文は無い
+      await sendPost('はなこ', 'あとのポスト', room);
+      const sealedList = await (await fetch(BASE + '/posts?room=' + room)).text();
+      expect(sealedList).not.toContain('未来へのひみつ');
+      const like = await fetch(BASE + '/posts/' + egg.id + '/like?room=' + room, { method: 'POST' });
+      expect(like.status).toBe(400);
+
+      // 「1 分」（テストでは 0.4 秒）たつと、SSE で知らせが来て、先頭に本文つきで並ぶ
+      await readUntil(reader, 'data: changed');
+      await Bun.sleep(600);
+      const posts = await (await fetch(BASE + '/posts?room=' + room)).json();
+      expect(posts[0].id).toBe(egg.id);
+      expect(posts[0].text).toBe('未来へのひみつ');
+      expect(posts[0].sealed).toBeUndefined();
+    } finally {
+      await reader.cancel();
+    }
+  });
+
+  test('選べる時間（1・10・60・1440 分）以外は 400', async () => {
+    expect((await sendEgg('a', 5)).status).toBe(400);
+    expect((await sendEgg('a', '1')).status).toBe(400);
+    expect((await sendEgg('a', -1)).status).toBe(400);
+  });
+
+  test('しりとり部屋では使えない', async () => {
+    expect((await sendEgg('らくだ', 1, 'shiritori-egg')).status).toBe(400);
+  });
+});
+

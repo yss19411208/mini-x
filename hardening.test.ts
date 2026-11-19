@@ -12,6 +12,8 @@ const SMALL_LIMITS = {
   MINIX_MAX_SSE_PER_IP: '2',
   MINIX_MAX_SSE_TOTAL: '4',
   MINIX_SSE_MAX_LIFETIME_MS: '1500',
+  MINIX_EGGS_PER_MINUTE: '2',
+  MINIX_MAX_EGGS_PER_ROOM: '3',
 };
 
 // trusted: 同じ PC の中継から来たときに CF-Connecting-IP を信じるサーバー（テストでは「人」をヘッダで分けられる）
@@ -268,3 +270,27 @@ describe('エラーの返事とヘッダ', () => {
     }
   });
 });
+
+describe('夢のたまごの上限（オリジナル機能 2）', () => {
+  const egg = { name: 'たろう', text: 'ひみつ', opensIn: 1 };
+
+  test('1 人が 1 分に作れるたまごは 2 個まで', async () => {
+    const ip = newIp();
+    const statuses: number[] = [];
+    for (let i = 0; i < 3; i++) {
+      statuses.push((await sendPost('egg-limit', ip, egg)).status);
+    }
+    expect(statuses).toEqual([201, 201, 429]);
+  });
+
+  test('1 部屋の、まだかえっていないたまごは 3 個まで', async () => {
+    const statuses: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      statuses.push((await sendPost('egg-room', newIp(), egg)).status);
+    }
+    expect(statuses).toEqual([201, 201, 201, 429]);
+    // ふつうのポストはできる
+    expect((await sendPost('egg-room', newIp())).status).toBe(201);
+  });
+});
+
