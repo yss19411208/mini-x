@@ -510,3 +510,45 @@ main {
 #reload-btn {
   border-radius: 8px;
 }
+
+/* ===== 応用ミッション B 組 ===== */
+
+/* B1: 残りの文字数とポストするボタンを右下に横並びにする */
+.compose-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.compose-footer #post-btn {
+  margin-top: 0;
+}
+
+#char-count {
+  color: var(--text-sub);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 140 字を超えたら数を赤くし、ボタンは押せないことが分かるよう薄くする */
+#char-count.over {
+  color: #f4212e;
+  font-weight: 700;
+}
+
+#post-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* B2: 名前の横に、薄い色でポストした時刻を出す。「・」で名前と区切る */
+.time {
+  color: var(--text-sub);
+  font-size: 14px;
+}
+
+.time::before {
+  content: "・";
+}

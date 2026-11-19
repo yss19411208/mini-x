@@ -40,7 +40,11 @@
           <div class="compose-body">
             <input id="name-input" type="text" placeholder="ニックネーム">
             <textarea id="text-input" placeholder="今日なにつくった？"></textarea>
-            <button id="post-btn">ポストする</button>
+            <!-- B1: 残りの文字数（script.js が数を入れる）と、ポストするボタンを横に並べる -->
+            <div class="compose-footer">
+              <span id="char-count"></span>
+              <button id="post-btn" title="Ctrl + Enter（Mac は ⌘ + Enter）でもポストできます">ポストする</button>
+            </div>
           </div>
         </div>
 
@@ -53,6 +57,8 @@
             <img class="avatar" src="icon.svg" alt="">
             <div class="post-body">
               <span class="name"></span>
+              <!-- B2: ポストした時刻。script.js が「3分前」などの文字を入れる -->
+              <time class="time"></time>
               <p class="text"></p>
               <!-- いいねボタン（ミッション 4）。ハートの横にいいねの数が入る -->
               <button class="like-btn"><span class="like-count"></span></button>
