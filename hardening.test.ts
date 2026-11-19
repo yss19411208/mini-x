@@ -133,9 +133,16 @@ describe('送るデータの大きさと形', () => {
     expect(res.status).toBe(413);
   });
 
-  test('とても大きな本文（200KB）も 413 で、サーバーは落ちない', async () => {
-    const res = await sendPost('body', newIp(), 'a'.repeat(200 * 1024));
-    expect(res.status).toBe(413);
+  test('とても大きな本文（200KB）も断られ、サーバーは落ちない', async () => {
+    // Bun は 64KB を超える本文を、読み終わる前に 413 で断って接続を切る。送っている途中で切られると、
+    // 送った側には 413 が届かず「接続が切れた（ECONNRESET）」になることがある。どちらも「断られた」とみなす
+    let result: number | string;
+    try {
+      result = (await sendPost('body', newIp(), 'a'.repeat(200 * 1024))).status;
+    } catch (error) {
+      result = (error as { code?: string }).code ?? 'error';
+    }
+    expect([413, 'ECONNRESET']).toContain(result);
     expect((await request('/posts?room=body', newIp())).status).toBe(200);
   });
 
