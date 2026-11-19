@@ -1,14 +1,16 @@
-// React 版ミニX の画面全体（B10）。ヘッダー・投稿欄・タイムラインの 3 つを並べる
+// React 版ミニX の画面全体（B10 で JSX、B11 で TSX にした）。ヘッダー・投稿欄・タイムラインの 3 つを並べる
 // 本体の script.ts では、関数が画面の部品を探して書き換えていた。React では「今の値（state）」から画面の形を書き、
 // 値が変わると React が描き直す
 import { useEffect } from 'react';
-import { sendLike } from './api.js';
-import { Compose } from './Compose.jsx';
-import { useLikedIds, useTimeline } from './hooks.js';
-import { PostCard } from './PostCard.jsx';
+import { sendLike } from './api.ts';
+import { Compose } from './Compose.tsx';
+import { useLikedIds, useTimeline } from './hooks.ts';
+import { PostCard } from './PostCard.tsx';
 
 // ヘッダー。SSE でつながっているか（B9）と、更新ボタン
-function Header({ isLive, onReload }) {
+type HeaderProps = { isLive: boolean; onReload: () => void };
+
+function Header({ isLive, onReload }: HeaderProps) {
   return (
     <header className="header">
       <h1>ホーム</h1>
@@ -38,7 +40,7 @@ export function App() {
   }, [posts, keepOnly]);
 
   // いいねは 1 人 1 回（B8）。先にピンクにしてから送り、届かなかったら戻す
-  async function like(id) {
+  async function like(id: string): Promise<void> {
     if (likedIds.has(id)) {
       return;
     }

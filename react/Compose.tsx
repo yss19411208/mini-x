@@ -1,11 +1,13 @@
 // 投稿欄の部品。名前と本文を useState で持ち、ポストする
-import { useState } from 'react';
+import { type KeyboardEvent, useState } from 'react';
 import icon from '../icon.svg';
-import { sendPost } from './api.js';
-import { countChars, MAX_TEXT_LENGTH } from './format.js';
+import { sendPost } from './api.ts';
+import { countChars, MAX_TEXT_LENGTH } from './format.ts';
 
 // onPosted は、ポストし終わったときに呼ぶ関数（タイムラインを取り直すため）
-export function Compose({ onPosted }) {
+type ComposeProps = { onPosted: () => void };
+
+export function Compose({ onPosted }: ComposeProps) {
   const [name, setName] = useState('');
   const [text, setText] = useState('');
   // 送っている途中か（B3。Ctrl + Enter の連打で 2 回送らないため）
@@ -13,7 +15,7 @@ export function Compose({ onPosted }) {
   // 残りの文字数（B1）。text が変わるたびに React が描き直すので、そのたびに数え直される
   const rest = MAX_TEXT_LENGTH - countChars(text);
 
-  async function submit() {
+  async function submit(): Promise<void> {
     if (rest < 0 || isPosting) {
       return;
     }
@@ -35,7 +37,7 @@ export function Compose({ onPosted }) {
   }
 
   // 本文の欄で Ctrl + Enter（Mac は Cmd + Enter）が押されたらポストする（B3）。日本語の変換中は何もしない
-  function postByShortcut(event) {
+  function postByShortcut(event: KeyboardEvent<HTMLTextAreaElement>): void {
     if (event.nativeEvent.isComposing) {
       return;
     }

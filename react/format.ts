@@ -7,26 +7,26 @@ export const MAX_TEXT_LENGTH = 140;
 const AVATAR_COLORS = ['#7856ff', '#d6336c', '#1971c2', '#2f9e44', '#e8590c', '#ae3ec9', '#0c8599', '#495057'];
 
 // 名前から、アイコンの背景の色を 1 つ選ぶ（B7。djb2 で全部の文字を混ぜる）
-export function avatarColor(name) {
+export function avatarColor(name: string): string {
   let hash = 5381;
   for (const char of name) {
-    hash = (hash * 33 + char.codePointAt(0)) % 1000003;
+    hash = (hash * 33 + char.codePointAt(0)!) % 1000003;
   }
-  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length]!;
 }
 
 // 名前の 1 文字目（B7）。絵文字が半分に切れないよう Array.from で分ける
-export function initialOf(name) {
-  return Array.from(name)[0];
+export function initialOf(name: string): string {
+  return Array.from(name)[0] ?? '';
 }
 
 // 文字数を数える。絵文字も 1 字（B1）
-export function countChars(text) {
+export function countChars(text: string): number {
   return Array.from(text).length;
 }
 
 // ポストした時刻を「たった今」「3分前」「2時間前」「11/19 16:02」の形にする（B2）
-export function formatTime(createdAt) {
+export function formatTime(createdAt: string): string {
   const date = new Date(createdAt);
   const minutes = Math.floor((Date.now() - date.getTime()) / (60 * 1000));
   if (minutes < 1) {

@@ -1,6 +1,6 @@
 // React の「フック」（use で始まる関数）。画面の部品から、タイムラインといいねの記録を使えるようにする
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { eventsUrl, fetchPosts, ROOM } from './api.js';
+import { eventsUrl, fetchPosts, type Post, ROOM } from './api.ts';
 
 // タイムラインを自動で取り直す間隔（B4）と、SSE を自分でつなぎ直すまでの待ち時間（B9）
 const AUTO_RELOAD_MS = 10 * 1000;
@@ -10,14 +10,15 @@ const RECONNECT_MAX_MS = 30 * 1000;
 // タイムライン（ポストの一覧）を持ち、SSE の知らせや 10 秒ごとに取り直す
 // posts は、まだ 1 回も取れていないあいだは null
 export function useTimeline() {
-  const [posts, setPosts] = useState(null);
+  // useState<Post[] | null> は「ポストの配列か null を入れる箱」と TypeScript に伝える書き方（B11）
+  const [posts, setPosts] = useState<Post[] | null>(null);
   const [isLive, setIsLive] = useState(false);
   // 取りに行っている途中か・途中でもう一度頼まれたか（B4。同じ通信を重ねないため）
   // 画面の描き直しには関係ないので、useState ではなく useRef に置く
   const loading = useRef({ busy: false, again: false });
 
   // 一覧を取り直す。途中なら「あとでもう 1 回」と覚えておき、終わってから取り直す
-  const reload = useCallback(async function reload() {
+  const reload = useCallback(async function reload(): Promise<void> {
     const state = loading.current;
     if (state.busy) {
       state.again = true;
@@ -40,25 +41,26 @@ export function useTimeline() {
   // 画面を開いたときに 1 回取り、サーバーの知らせ（SSE）につなぐ（B9）
   // 画面が閉じられたら（return の関数）、接続とつなぎ直しのタイマーを片づける
   useEffect(() => {
-    let source = null;
-    let retryTimer = null;
+    let source: EventSource | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let waitMs = RECONNECT_MIN_MS;
 
-    function connect() {
-      source = new EventSource(eventsUrl());
+    function connect(): void {
+      const current = new EventSource(eventsUrl());
+      source = current;
       // つながったら（つなぎ直せたときも）、切れていたあいだの分を 1 回取り直す
-      source.addEventListener('open', () => {
+      current.addEventListener('open', () => {
         setIsLive(true);
         waitMs = RECONNECT_MIN_MS;
         reload();
       });
       // 知らせ（data: changed）が来たら取り直す
-      source.addEventListener('message', reload);
+      current.addEventListener('message', reload);
       // 切れたら。ブラウザが諦めた（CLOSED）ときだけ、少し待って自分でつなぎ直す（待ち時間は倍々、最大 30 秒）
-      source.addEventListener('error', () => {
+      current.addEventListener('error', () => {
         setIsLive(false);
-        if (source.readyState === EventSource.CLOSED) {
-          source.close();
+        if (current.readyState === EventSource.CLOSED) {
+          current.close();
           retryTimer = setTimeout(connect, waitMs);
           waitMs = Math.min(waitMs * 2, RECONNECT_MAX_MS);
         }
@@ -69,7 +71,7 @@ export function useTimeline() {
     connect();
     return () => {
       clearTimeout(retryTimer);
-      source.close();
+      source?.close();
     };
   }, [reload]);
 
@@ -94,11 +96,11 @@ export function useTimeline() {
 const LIKED_KEY = 'minix-liked-' + ROOM;
 
 // 保存してある id を読み出す。無い・壊れている・保存が許されていないときは空から始める
-function loadLikedIds() {
+function loadLikedIds(): Set<string> {
   try {
-    const saved = JSON.parse(localStorage.getItem(LIKED_KEY));
+    const saved: unknown = JSON.parse(localStorage.getItem(LIKED_KEY) ?? 'null');
     if (Array.isArray(saved)) {
-      return new Set(saved.filter((id) => typeof id === 'string'));
+      return new Set(saved.filter((id): id is string => typeof id === 'string'));
     }
   } catch (error) {
     console.warn('いいねの記録を読めませんでした', error);
@@ -119,11 +121,11 @@ export function useLikedIds() {
     }
   }, [likedIds]);
 
-  const add = useCallback((id) => {
+  const add = useCallback((id: string) => {
     setLikedIds((prev) => new Set(prev).add(id));
   }, []);
 
-  const remove = useCallback((id) => {
+  const remove = useCallback((id: string) => {
     setLikedIds((prev) => {
       const next = new Set(prev);
       next.delete(id);
@@ -132,7 +134,7 @@ export function useLikedIds() {
   }, []);
 
   // サーバーから消えたポストの id を、記録からも消す（記録が増え続けないように）。消すものが無ければそのまま
-  const keepOnly = useCallback((posts) => {
+  const keepOnly = useCallback((posts: Post[]) => {
     const ids = new Set(posts.map((post) => post.id));
     setLikedIds((prev) => {
       const next = new Set(Array.from(prev).filter((id) => ids.has(id)));

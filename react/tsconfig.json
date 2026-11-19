@@ -1,0 +1,18 @@
+{
+  // React 版（B11）の型の検査の設定。react フォルダで bunx tsc を実行する。ファイルは作らない（Bun が動かす）
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    // JSX を React 17 からの書き方（import React が要らない）で読む
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true
+  },
+  "include": ["*.ts", "*.tsx"]
+}
